@@ -24,6 +24,9 @@
 
 /* ---------------------------------------------------------------------------
  * Popover menu (spec 6)
+ *
+ * Rules on a popover use --sf-border-popover: in the dark themes
+ * --sf-border-soft equals --sf-bg-popover and would not show.
  * ------------------------------------------------------------------------- */
 .sf-root .sf-menu {
   position: absolute;
@@ -49,7 +52,7 @@
   font-size: var(--sf-fs-caption);
   font-weight: 600;
   color: var(--sf-text-muted);
-  border-bottom: 1px solid var(--sf-border-soft);
+  border-bottom: 1px solid var(--sf-border-popover);
   margin-bottom: 5px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -93,7 +96,7 @@
 .sf-root .sf-menu-divider {
   height: 1px;
   margin: 5px 4px;
-  background: var(--sf-border-soft);
+  background: var(--sf-border-popover);
 }
 
 /* ---------------------------------------------------------------------------
@@ -371,7 +374,7 @@
 .sf-root .sf-panel-foot {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 9px 14px 12px;
-  border-top: 1px solid var(--sf-border-soft);
+  border-top: 1px solid var(--sf-border-popover);
   font-size: var(--sf-fs-caption);
   color: var(--sf-text-muted);
 }

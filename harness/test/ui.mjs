@@ -261,6 +261,12 @@ const TESTS = [
                         'Force update all', 'Edit folder…', 'Delete folder']) {
       ok(items.includes(want), `folder menu is missing "${want}"`);
     }
+
+    const [rule, bg] = await page.$eval('.sf-menu', (m) => [
+      getComputedStyle(m.querySelector('.sf-menu-divider')).backgroundColor,
+      getComputedStyle(m).backgroundColor
+    ]);
+    ok(rule !== bg, `the divider is the menu's own colour (${rule})`);
     await shot('05-folder-menu');
   }),
 
