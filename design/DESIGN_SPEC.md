@@ -114,8 +114,8 @@ horizontally inside its card on narrower screens.
 |---|---|
 | Chevron (col 1) | Fold / unfold. `aria-expanded` reflects state. Rotates 90° when open. |
 | Folder name | Fold / unfold (mouse convenience; not a separate tab stop). |
-| **Folder icon** (40×40, 10px radius) | Opens the **folder command menu**, left-aligned under the icon. Hover ring 2px accent. |
-| ⋮ (col 9) | Opens the same folder menu, right-aligned. |
+| **Folder icon** (40×40, 10px radius) | Opens the **folder popover** (§6.1), left-aligned under the icon. Hover ring 2px accent. |
+| ⋮ (col 9) | Opens the same folder popover, right-aligned. |
 | Autostart switch | All members on if not all on; otherwise all off. Shows "Mixed" with a centred knob when members differ. |
 
 ### 4.4 Status summary
@@ -139,31 +139,38 @@ horizontally inside its card on narrower screens.
 
 ## 6. Menus
 
-Popover: 260px wide (the container popover 288px), max-height 76vh with scroll, opens
-below the trigger (or above when there is no room below), closes on outside click, on
-Escape (focus returns to the trigger) and after choosing an item. While any job is
-running, every Docker action is disabled.
+Popover: 260px wide (the folder and container popovers 288px), max-height 76vh with
+scroll, opens below the trigger (or above when there is no room below), closes on
+outside click, on Escape (focus returns to the trigger) and after choosing an item.
+While any job is running, every Docker action is disabled.
 
-### 6.1 Folder menu
+### 6.1 Folder popover (from its icon or its ⋮)
 
-Header: folder name. Items, with enable rules:
+Built from the container popover's parts (§6.2). Top to bottom:
 
-| Item | Hint | Enabled when |
-|---|---|---|
-| Start all | "n stopped" / "all up" | some member stopped |
-| Stop all | "reverse order" if set | some member running or paused |
-| Restart all | "n running" | some member running |
-| Pause all *or* Resume all | "n paused" | Pause: some running, none paused. Resume: some paused |
-| — | | |
-| Check for updates | | folder not empty |
-| Update n containers | "ready" | shown only when n > 0 |
-| Force update all (warning colour) | member count | folder not empty → opens confirmation (§8) |
-| — | | |
-| Open WebUIs | running count | some member running |
-| Edit folder… | | always |
-| Move folder up / down | | not first / not last |
-| — | | |
-| Delete folder (danger colour) | | no job running → opens confirmation (§8) |
+- Header: folder tile, name, the start delay ("5 s apart" / "no delay"), and a pill with
+  one segment per member, coloured by status, and "n running".
+- While a job runs: one line naming it, and that Docker actions are off until it ends.
+- Banner, only when updates are ready: "n updates ready" with Update.
+- Strip of four buttons in fixed slots, each with the number it acts on. What cannot run
+  is greyed, not removed:
+
+  | Slot | Count | Enabled when |
+  |---|---|---|
+  | Start all | "n stopped" / "all up" | some member stopped |
+  | Stop all | "n up" / "none up" | some member running or paused |
+  | Restart all | "n running" | some member running |
+  | Pause all *or* Resume all | "n running" / "n paused" | Pause: some running, none paused. Resume: some paused |
+
+- List: Check for updates (folder not empty) · Edit folder… (always).
+- Position: "1st of 3" with move up / move down buttons (not first / not last).
+- WebUI: one chip per member with a WebUI, enabled while it runs; a chip opens that one
+  WebUI. One tab per click: browsers block every tab after the first that a single
+  click opens.
+- Footer: Force update all… (warning colour; folder not empty) · Delete folder… (danger
+  colour). Both open a confirmation (§8).
+
+Keyboard as §6.2.
 
 ### 6.2 Container popover (from its icon, its ⋮ or a folded strip icon)
 
@@ -215,7 +222,7 @@ summary ("4 containers restarted") and a close button, then dismisses itself aft
 ### 7.2 Toasts
 
 Bottom-left, auto-dismiss after 4.2 s: folder created/saved/deleted, container moved,
-WebUIs opened, nothing-to-do, another-job-running.
+nothing-to-do, another-job-running.
 
 ## 8. Confirmations
 

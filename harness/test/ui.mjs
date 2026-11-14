@@ -261,24 +261,168 @@ const TESTS = [
     ok((await focused()).startsWith('Actions for plex'), `Tab out left focus on "${await focused()}"`);
   }),
 
-  t('clicking the folder icon opens the folder menu', async () => {
+  t('the folder popover keeps its slots, counts what each acts on and greys the rest', async () => {
     await fresh();
-    await page.click('.sf-row-folder[data-folder="f-media"] .sf-folder-icon');
-    await page.waitForSelector('.sf-menu', { timeout: 3000 });
-    ok(await text('.sf-menu-head') === 'Media', 'menu header should be the folder name');
-
-    const items = await page.$$eval('.sf-menu-item .sf-menu-label', (n) => n.map((x) => x.textContent));
-    for (const want of ['Start all', 'Stop all', 'Restart all', 'Check for updates',
-                        'Force update all', 'Edit folder…', 'Delete folder']) {
-      ok(items.includes(want), `folder menu is missing "${want}"`);
+    const read = () => page.$eval('.sf-fm', (pop) => ({
+      name: pop.querySelector('.sf-ctm-name').textContent,
+      meta: pop.querySelector('.sf-ctm-image').textContent,
+      pill: pop.querySelector('.sf-ctm-state').textContent.trim(),
+      segs: pop.querySelectorAll('.sf-fm-seg').length,
+      banner: (pop.querySelector('.sf-ctm-update-text') || {}).textContent || null,
+      strip: [...pop.querySelectorAll('.sf-fm-act')].map((b) =>
+        [b.querySelector('.sf-fm-act-label').textContent, b.querySelector('.sf-fm-count').textContent, !b.disabled]),
+      list: [...pop.querySelectorAll('.sf-ctm-list .sf-menu-label')].map((n) => n.textContent),
+      position: pop.querySelector('.sf-fm-pos-value').textContent,
+      moves: [...pop.querySelectorAll('.sf-fm-move')].map((b) => !b.disabled),
+      chips: [...pop.querySelectorAll('.sf-fm-web-chip')].map((b) =>
+        [b.querySelector('.sf-ctm-chip-name').textContent, !b.disabled]),
+      foot: [...pop.querySelectorAll('.sf-ctm-risk')].map((b) => [b.textContent.trim(), !b.disabled])
+    }));
+    const cases = [
+      ['f-media', {
+        name: 'Media', meta: '5 s apart', pill: '4 running', segs: 5, banner: '2 updates ready',
+        strip: [['Start all', '1 stopped', true], ['Stop all', '4 up', true],
+                ['Restart all', '4 running', true], ['Pause all', '4 running', true]],
+        list: ['Check for updates', 'Edit folder…'], position: '1st of 3', moves: [false, true],
+        chips: [['plex', true], ['qbittorrent', true], ['prowlarr', false], ['sonarr', true], ['radarr', true]],
+        foot: [['Force update all…', true], ['Delete folder…', true]] }],
+      ['f-home', {
+        name: 'Smart home', meta: '10 s apart', pill: '2 running', segs: 3, banner: '1 update ready',
+        strip: [['Start all', 'all up', false], ['Stop all', '3 up', true],
+                ['Restart all', '2 running', true], ['Resume all', '1 paused', true]],
+        list: ['Check for updates', 'Edit folder…'], position: '2nd of 3', moves: [true, true],
+        chips: [['zigbee2mqtt', false], ['homeassistant', true]],
+        foot: [['Force update all…', true], ['Delete folder…', true]] }],
+      ['f-ai', {
+        name: 'AI', meta: 'no delay', pill: '2 running', segs: 2, banner: null,
+        strip: [['Start all', 'all up', false], ['Stop all', '2 up', true],
+                ['Restart all', '2 running', true], ['Pause all', '2 running', true]],
+        list: ['Check for updates', 'Edit folder…'], position: '3rd of 3', moves: [true, false],
+        chips: [['open-webui', true]],
+        foot: [['Force update all…', true], ['Delete folder…', true]] }]
+    ];
+    for (const [id, want] of cases) {
+      await page.click(`.sf-row-folder[data-folder="${id}"] .sf-folder-icon`);
+      await page.waitForSelector('.sf-fm', { timeout: 3000 });
+      const got = await read();
+      ok(JSON.stringify(got) === JSON.stringify(want), `${id}: popover was ${JSON.stringify(got)}`);
+      if (id === 'f-media') { await settle(); await shot('05-folder-popover'); }
+      await page.keyboard.press('Escape');
+      await page.waitForFunction(() => !document.querySelector('.sf-fm'), { timeout: 3000 });
     }
 
-    const [rule, bg] = await page.$eval('.sf-menu', (m) => [
-      getComputedStyle(m.querySelector('.sf-menu-divider')).backgroundColor,
+    /* Rules must show in the dark themes, where --sf-border-soft equals the
+     * popover's own background. */
+    await page.click('.sf-row-folder[data-folder="f-media"] .sf-folder-icon');
+    await page.waitForSelector('.sf-fm');
+    const [rule, bg] = await page.$eval('.sf-fm', (m) => [
+      getComputedStyle(m.querySelector('.sf-ctm-list')).borderTopColor,
       getComputedStyle(m).backgroundColor
     ]);
-    ok(rule !== bg, `the divider is the menu's own colour (${rule})`);
-    await shot('05-folder-menu');
+    ok(rule !== bg, `the rule is the popover's own colour (${rule})`);
+  }),
+
+  t('a WebUI chip opens that one WebUI', async () => {
+    await fresh();
+    await page.evaluate(() => {
+      window.__opened = [];
+      window.open = (url) => { window.__opened.push(url); return null; };
+    });
+    await page.click('.sf-row-folder[data-folder="f-media"] .sf-folder-icon');
+    await page.waitForSelector('.sf-fm', { timeout: 3000 });
+    await clickFolderControl('sonarr');
+    const opened = await page.evaluate(() => window.__opened);
+    ok(JSON.stringify(opened) === '["http://tower:8989"]', `opened ${JSON.stringify(opened)}`);
+    ok(!(await page.$('.sf-fm')), 'choosing a WebUI should close the popover');
+  }),
+
+  t('the folder popover moves its folder down and back up', async () => {
+    await fresh();
+    const order = () => page.evaluate(() => window.SimpleFolders.store.state.folders.map((f) => f.id).join(','));
+    await page.click('.sf-row-folder[data-folder="f-media"] .sf-folder-icon');
+    await page.waitForSelector('.sf-fm', { timeout: 3000 });
+    await page.click('[aria-label="Move Media down"]');
+    await page.waitForFunction(() =>
+      window.SimpleFolders.store.state.folders.map((f) => f.id).join(',') === 'f-home,f-media,f-ai', { timeout: 5000 });
+
+    await page.click('.sf-row-folder[data-folder="f-media"] .sf-folder-icon');
+    await page.waitForSelector('.sf-fm', { timeout: 3000 });
+    ok(await text('.sf-fm-pos-value') === '2nd of 3', `position read ${await text('.sf-fm-pos-value')}`);
+    await page.click('[aria-label="Move Media up"]');
+    await page.waitForFunction(() =>
+      window.SimpleFolders.store.state.folders.map((f) => f.id).join(',') === 'f-media,f-home,f-ai', { timeout: 5000 });
+    ok(await order() === 'f-media,f-home,f-ai', 'Media should be first again');
+  }),
+
+  t('the folder popover names the running job and greys Docker actions', async () => {
+    await fresh();
+    await page.evaluate(() => {
+      const hold = new Promise((resolve) => { window.__sfRelease = resolve; });
+      window.SimpleFolders.jobs.run('Stopping Media', ['plex'],
+        [{ name: 'plex', note: 'stopping', run: () => hold }]);
+    });
+    await page.waitForSelector('.sf-panel', { timeout: 3000 });
+
+    await page.evaluate(() =>
+      document.querySelector('.sf-row-folder[data-folder="f-home"] .sf-folder-icon').click());
+    await page.waitForSelector('.sf-fm', { timeout: 3000 });
+    const note = await text('.sf-fm .sf-ctm-busy');
+    ok(note === 'Stopping Media. Docker actions are off until it finishes.', `note was: ${note}`);
+
+    const enabled = await page.$$eval('.sf-fm button:not([disabled])', (n) => n.map((b) =>
+      b.getAttribute('aria-label') || (b.querySelector('.sf-ctm-chip-name, .sf-menu-label') || b).textContent.trim()));
+    ok(JSON.stringify(enabled) === '["Edit folder…","Move Smart home up","Move Smart home down","homeassistant"]',
+       `still enabled while busy: ${JSON.stringify(enabled)}`);
+    await settle();
+    await shot('05b-folder-popover-busy');
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => window.__sfRelease());
+  }),
+
+  t('Tab moves between folder popover groups and past the last one leaves', async () => {
+    await fresh();
+    const focused = () => page.evaluate(() => {
+      const a = document.activeElement;
+      const label = a.querySelector && a.querySelector('.sf-ctm-chip-name, .sf-menu-label');
+      return a.getAttribute('aria-label') || (label || a).textContent.trim();
+    });
+
+    await page.focus('.sf-row-folder[data-folder="f-media"] .sf-folder-icon');
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.sf-fm', { timeout: 3000 });
+
+    const path = [];
+    path.push(await focused());
+    for (const key of ['Tab', 'ArrowRight', 'Tab', 'ArrowDown', 'Tab', 'Tab', 'ArrowRight', 'Tab']) {
+      await page.keyboard.press(key);
+      path.push(await focused());
+    }
+    const want = ['Update', 'Start all, 1 stopped', 'Stop all, 4 up', 'Check for updates', 'Edit folder…',
+                  'Move Media down', 'plex', 'qbittorrent', 'Force update all…'];
+    ok(JSON.stringify(path) === JSON.stringify(want), `focus went ${JSON.stringify(path)}`);
+
+    await page.keyboard.press('Tab');
+    await page.waitForFunction(() => !document.querySelector('.sf-fm'), { timeout: 3000 });
+    ok(await focused() === 'Commands for folder Media', `Tab out left focus on "${await focused()}"`);
+  }),
+
+  t('the folder popover fits a phone screen', async () => {
+    await page.setViewport({ width: 390, height: 844, isMobile: true });
+    await fresh();
+    for (const where of ['.sf-folder-icon', '.sf-cell-menu .sf-kebab']) {
+      await page.evaluate((sel) =>
+        document.querySelector(`.sf-row-folder[data-folder="f-media"] ${sel}`).click(), where);
+      await page.waitForSelector('.sf-fm', { timeout: 3000 });
+      const box = await page.$eval('.sf-fm', (n) => {
+        const r = n.getBoundingClientRect();
+        return { left: r.left, right: r.right, width: innerWidth, scrolls: n.scrollHeight > n.clientHeight };
+      });
+      ok(box.left >= 8 && box.right <= box.width - 8, `${where}: popover spans ${box.left}-${box.right} of ${box.width}`);
+      if (where === '.sf-folder-icon') { await settle(); await shot('05c-folder-popover-phone'); }
+      await page.keyboard.press('Escape');
+      await page.waitForFunction(() => !document.querySelector('.sf-fm'), { timeout: 3000 });
+    }
+    await page.setViewport({ width: 1440, height: 1000, isMobile: false });
   }),
 
   t('Escape closes the menu and returns focus to its trigger', async () => {
@@ -339,8 +483,8 @@ const TESTS = [
     const before = await count('.sf-row-ct');
 
     await page.click('.sf-row-folder[data-folder="f-ai"] .sf-folder-icon');
-    await page.waitForSelector('.sf-menu');
-    await clickMenuItem('Delete folder');
+    await page.waitForSelector('.sf-fm');
+    await clickFolderControl('Delete folder…');
 
     await page.waitForSelector('.sf-dialog', { timeout: 3000 });
     const body = await text('.sf-dialog-text');
@@ -359,8 +503,8 @@ const TESTS = [
   t('force update warns and lists each member', async () => {
     await fresh();
     await page.click('.sf-row-folder[data-folder="f-media"] .sf-folder-icon');
-    await page.waitForSelector('.sf-menu');
-    await clickMenuItem('Force update all');
+    await page.waitForSelector('.sf-fm');
+    await clickFolderControl('Force update all…');
 
     await page.waitForSelector('.sf-dialog', { timeout: 3000 });
     const title = await text('.sf-dialog-title');
@@ -434,8 +578,8 @@ const TESTS = [
   t('bulk stop runs sequentially in reverse order with a progress panel', async () => {
     await fresh();
     await page.click('.sf-row-folder[data-folder="f-ai"] .sf-folder-icon');
-    await page.waitForSelector('.sf-menu');
-    await clickMenuItem('Stop all');
+    await page.waitForSelector('.sf-fm');
+    await clickFolderControl('Stop all');
 
     await page.waitForSelector('.sf-panel', { timeout: 3000 });
     ok((await text('.sf-panel-title')) === 'Stopping AI', 'wrong panel title');
@@ -462,8 +606,8 @@ const TESTS = [
   t('a second job is refused while one is running', async () => {
     await fresh();
     await page.click('.sf-row-folder[data-folder="f-media"] .sf-folder-icon');
-    await page.waitForSelector('.sf-menu');
-    await clickMenuItem('Stop all');
+    await page.waitForSelector('.sf-fm');
+    await clickFolderControl('Stop all');
     await page.waitForSelector('.sf-panel', { timeout: 3000 });
 
     /* Every docker action is disabled while a job runs (spec 6).
@@ -471,9 +615,9 @@ const TESTS = [
      * so a handle resolved a moment ago may already be detached. */
     await page.evaluate(() =>
       document.querySelector('.sf-row-folder[data-folder="f-home"] .sf-folder-icon').click());
-    await page.waitForSelector('.sf-menu', { timeout: 3000 });
-    const disabled = await page.$eval('.sf-menu-item', (n) => n.disabled);
-    ok(disabled, 'folder menu actions should be disabled while a job runs');
+    await page.waitForSelector('.sf-fm', { timeout: 3000 });
+    const live = await page.$$eval('.sf-fm .sf-fm-act:not([disabled])', (n) => n.length);
+    ok(live === 0, `${live} bulk actions still enabled while a job runs`);
     await page.keyboard.press('Escape');
   }),
 
@@ -1127,15 +1271,20 @@ const TESTS = [
 ];
 
 /* ------------------------------------------------------------------ */
-async function clickMenuItem(label) {
+/* A control in the folder popover, by its visible label. */
+async function clickFolderControl(label) {
   const clicked = await page.evaluate((want) => {
-    const item = [...document.querySelectorAll('.sf-menu-item')]
-      .find((b) => b.querySelector('.sf-menu-label').textContent === want);
-    if (!item || item.disabled) return false;
-    item.click();
+    const pop = document.querySelector('.sf-fm');
+    if (!pop) return false;
+    const btn = [...pop.querySelectorAll('button')].find((b) => {
+      const l = b.querySelector('.sf-fm-act-label, .sf-menu-label, .sf-ctm-chip-name');
+      return (l || b).textContent.trim() === want;
+    });
+    if (!btn || btn.disabled) return false;
+    btn.click();
     return true;
   }, label);
-  if (!clicked) throw new Error(`menu item "${label}" not found or disabled`);
+  if (!clicked) throw new Error(`folder popover control "${label}" not found or disabled`);
 }
 
 /* A container's popover, from its strip icon or its row icon. */

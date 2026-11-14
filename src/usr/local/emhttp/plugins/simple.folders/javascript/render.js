@@ -308,7 +308,7 @@
     var icon = U.el('button.sf-folder-icon', {
       type: 'button',
       'aria-label': 'Commands for folder ' + folder.name,
-      'aria-haspopup': 'menu',
+      'aria-haspopup': 'dialog',
       onClick: function (e) { SF.menus.folder(e.currentTarget, folder, 'left'); }
     }, [folderIconContent(folder)]);
 
@@ -377,7 +377,7 @@
     row.appendChild(U.el('div.sf-cell.sf-cell-menu', null, [
       kebab('Menu for folder ' + folder.name, function (e) {
         SF.menus.folder(e.currentTarget, folder, 'right');
-      })
+      }, 'dialog')
     ]));
 
     return row;
@@ -607,7 +607,8 @@
     return node;
   }
 
-  /* The container popover is a dialog with groups, not a menu (spec 6.2). */
+  /* The folder and container popovers are dialogs with groups, not menus
+   * (spec 6). */
   function kebab(label, onClick, popup) {
     return U.el('button.sf-kebab', {
       type: 'button',
