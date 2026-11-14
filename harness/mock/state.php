@@ -15,10 +15,11 @@ define('HARNESS_FIXTURES', HARNESS_ROOT.'/fixtures/containers.json');
 
 /* Artificial latency (seconds) per simulated docker action, so the sequential
  * job engine in the UI is exercised against something that actually takes
- * time. Override with HARNESS_LATENCY=0 for fast test runs. */
+ * time. Override with HARNESS_LATENCY=0 for fast test runs. Empty counts as
+ * unset: serve.sh passes it to Docker even when it is not set. */
 function harness_latency(): float {
   $env = getenv('HARNESS_LATENCY');
-  return $env === false ? 0.6 : (float)$env;
+  return $env === false || $env === '' ? 0.6 : (float)$env;
 }
 
 /* Containers whose next action must fail, as "name:action" or "name:*".
