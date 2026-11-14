@@ -96,7 +96,7 @@ horizontally inside its card on narrower screens.
 - Each strip button: 38×38 hit area, 30×30 tile, 8px radius, letter or app icon,
   status dot (11px, bottom-right, ringed in the row colour) unless the folder's preview
   mode is "Icons only". Tooltip `name · Status`. `aria-label` "Actions for <name>, <status>".
-- **Clicking a strip icon opens that container's menu** (§6.2), anchored to the icon,
+- **Clicking a strip icon opens that container's popover** (§6.2), anchored to the icon,
   left-aligned.
 - Preview modes (folder setting): `status` = icons + status dots (default),
   `icons` = icons only, `count` = no strip; line 2 shows the sub-line instead.
@@ -139,10 +139,10 @@ horizontally inside its card on narrower screens.
 
 ## 6. Menus
 
-Popover: 260px wide, max-height 76vh with scroll, opens below the trigger (or above when
-there is no room below), closes on outside click, on Escape (focus returns to the
-trigger) and after choosing an item. While any job is running, every Docker action is
-disabled.
+Popover: 260px wide (the container popover 288px), max-height 76vh with scroll, opens
+below the trigger (or above when there is no room below), closes on outside click, on
+Escape (focus returns to the trigger) and after choosing an item. While any job is
+running, every Docker action is disabled.
 
 ### 6.1 Folder menu
 
@@ -165,12 +165,25 @@ Header: folder name. Items, with enable rules:
 | — | | |
 | Delete folder (danger colour) | | no job running → opens confirmation (§8) |
 
-### 6.2 Container menu (from ⋮ or from a folded strip icon)
+### 6.2 Container popover (from its icon, its ⋮ or a folded strip icon)
 
-Header: container name. Start / Stop / Resume (by state) · Restart (running only) ·
-Update (when one is ready) or Force update · — · "Move to folder" or "Add to folder"
-(heading) · one item per other folder with its item count · New folder… (opens the
-editor with this container preselected) · "Remove from <folder>" (only if in a folder).
+Top to bottom:
+
+- Header: container icon, name, image, and a state pill.
+- While a job runs: one line naming it, and that Docker actions are off until it ends.
+- Banner, only when one is ready: "Update ready" with Update, or "Rebuild ready" with
+  Rebuild.
+- Strip of four buttons in fixed slots: Start/Stop · Restart · Pause/Resume · WebUI.
+  What cannot run is greyed, not removed. A paused container offers only Resume.
+- List: Console (running only) · Logs · Edit container…
+- Folder chips: None · one per folder (current one pressed) · New folder (opens the
+  editor with this container preselected). A chip moves the container; None takes it
+  out.
+- Footer: Force update… (warning colour; confirms) · Remove… (danger colour; Unraid's
+  own confirmation).
+
+A dialog, not a menu: each group is one Tab stop, arrow keys move within it, and Tab
+past either end closes it.
 
 ## 7. Bulk operation semantics
 
