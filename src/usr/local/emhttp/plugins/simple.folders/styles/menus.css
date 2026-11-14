@@ -97,6 +97,134 @@
 }
 
 /* ---------------------------------------------------------------------------
+ * Container popover (spec 6.2)
+ *
+ * Its rules use --sf-border-popover: --sf-border-soft equals the popover's
+ * own background in the dark themes and would not show.
+ * ------------------------------------------------------------------------- */
+.sf-root .sf-menu.sf-ctm { width: var(--sf-ctm-w, 288px); }
+
+.sf-root .sf-ctm-ico { flex: none; width: 16px; height: 16px; }
+
+.sf-root .sf-ctm-head {
+  display: flex; align-items: center; gap: 10px;
+  min-width: 0;
+  padding: 6px 6px 10px;
+}
+.sf-root .sf-ctm-tile { flex: none; width: 36px; height: 36px; border-radius: 8px; }
+.sf-root .sf-ctm-title { flex: 1 1 auto; min-width: 0; }
+.sf-root .sf-ctm-name {
+  font-size: var(--sf-fs-body); font-weight: 600; color: var(--sf-text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sf-root .sf-ctm-image {
+  font-family: var(--sf-font-mono); font-size: var(--sf-fs-eyebrow); color: var(--sf-text-faint);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sf-root .sf-ctm-state {
+  flex: none; display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px 3px 7px;
+  border: 1px solid var(--sf-border-row); border-radius: var(--sf-r-pill);
+  background: var(--sf-bg-well);
+  font-size: var(--sf-fs-eyebrow); color: var(--sf-text-secondary);
+}
+
+.sf-root .sf-ctm-busy {
+  display: flex; align-items: flex-start; gap: 9px;
+  margin: 0 2px 8px; padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--sf-accent-soft-bg); color: var(--sf-accent-soft-fg);
+  font-size: var(--sf-fs-caption); line-height: 1.4;
+}
+.sf-root .sf-ctm-busy .sf-mark { margin-top: 2px; }
+
+.sf-root .sf-ctm-update {
+  display: flex; align-items: center; gap: 9px;
+  margin: 0 2px 8px; padding: 6px 6px 6px 10px;
+  border-radius: 9px;
+  background: var(--sf-accent-soft-bg); color: var(--sf-accent-soft-fg);
+  font-size: var(--sf-fs-small);
+}
+.sf-root .sf-ctm-update-text { flex: 1 1 auto; }
+.sf-root .sf-ctm-go {
+  flex: none; padding: 6px 12px;
+  border-radius: 7px;
+  background: var(--sf-accent); color: var(--sf-on-accent);
+  font-size: var(--sf-fs-caption); font-weight: 600;
+}
+.sf-root .sf-ctm-go:hover:not([disabled]) { background: var(--sf-accent-hover); }
+.sf-root .sf-ctm-go[disabled] { opacity: .45; cursor: not-allowed; }
+
+.sf-root .sf-ctm-strip {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px;
+  padding: 0 2px 8px;
+}
+.sf-root .sf-ctm-act {
+  display: grid; justify-items: center; gap: 5px;
+  padding: 10px 2px 8px;
+  border: 1px solid var(--sf-border-row); border-radius: 9px;
+  background: var(--sf-bg-well);
+  font-size: var(--sf-fs-eyebrow); color: var(--sf-text);
+}
+.sf-root .sf-ctm-act .sf-ctm-ico { width: 18px; height: 18px; color: var(--sf-text-secondary); }
+.sf-root .sf-ctm-act:hover:not([disabled]) { background: var(--sf-bg-hover-menu); }
+.sf-root .sf-ctm-act[disabled] { opacity: .38; cursor: not-allowed; }
+
+.sf-root .sf-ctm-list { padding: 4px 0; border-top: 1px solid var(--sf-border-popover); }
+.sf-root .sf-ctm .sf-menu-item { justify-content: flex-start; }
+.sf-root .sf-ctm .sf-menu-item .sf-ctm-ico { color: var(--sf-text-muted); }
+
+.sf-root .sf-ctm-folder { border-top: 1px solid var(--sf-border-popover); }
+.sf-root .sf-ctm-folder .sf-menu-sub { padding: 9px 9px 6px; }
+.sf-root .sf-ctm-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 6px 10px; }
+.sf-root .sf-ctm-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  max-width: 100%; height: 32px; padding: 0 11px 0 4px;
+  border: 1px solid var(--sf-border-popover); border-radius: var(--sf-r-pill);
+  font-size: var(--sf-fs-caption); color: var(--sf-text-secondary);
+}
+.sf-root .sf-ctm-chip-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sf-root .sf-ctm-chip:hover:not([disabled]) { background: var(--sf-bg-hover-menu); }
+.sf-root .sf-ctm-chip[aria-pressed="true"] {
+  border-color: var(--sf-accent);
+  background: var(--sf-accent-soft-bg); color: var(--sf-accent-soft-fg);
+  cursor: default;
+}
+.sf-root .sf-ctm-chip[disabled] { opacity: .4; cursor: not-allowed; }
+.sf-root .sf-ctm-none { padding: 0 11px; }
+.sf-root .sf-ctm-new { padding: 0 11px 0 8px; border-style: dashed; color: var(--sf-text-muted); }
+.sf-root .sf-ctm-new .sf-ctm-ico { width: 13px; height: 13px; }
+
+.sf-root .sf-ctm-ftile {
+  flex: none; display: grid; place-items: center;
+  width: 24px; height: 24px; border-radius: 50%; overflow: hidden;
+  background: var(--sf-slate-tile); color: var(--sf-slate-glyph);
+}
+.sf-root .sf-ctm-ftile > svg { width: 14px; height: 14px; }
+.sf-root .sf-ctm-ftile > img,
+.sf-root .sf-ctm-ftile > span { width: 100%; height: 100%; border-radius: 0; object-fit: contain; }
+.sf-root .sf-ctm-chip[data-color="blue"]   .sf-ctm-ftile { background: var(--sf-blue-tile);   color: var(--sf-blue-glyph); }
+.sf-root .sf-ctm-chip[data-color="teal"]   .sf-ctm-ftile { background: var(--sf-teal-tile);   color: var(--sf-teal-glyph); }
+.sf-root .sf-ctm-chip[data-color="green"]  .sf-ctm-ftile { background: var(--sf-green-tile);  color: var(--sf-green-glyph); }
+.sf-root .sf-ctm-chip[data-color="amber"]  .sf-ctm-ftile { background: var(--sf-amber-tile);  color: var(--sf-amber-glyph); }
+.sf-root .sf-ctm-chip[data-color="orange"] .sf-ctm-ftile { background: var(--sf-orange-tile); color: var(--sf-orange-glyph); }
+.sf-root .sf-ctm-chip[data-color="rose"]   .sf-ctm-ftile { background: var(--sf-rose-tile);   color: var(--sf-rose-glyph); }
+.sf-root .sf-ctm-chip[data-color="violet"] .sf-ctm-ftile { background: var(--sf-violet-tile); color: var(--sf-violet-glyph); }
+
+.sf-root .sf-ctm-foot { display: flex; gap: 4px; padding-top: 6px; border-top: 1px solid var(--sf-border-popover); }
+.sf-root .sf-ctm-risk {
+  flex: 1 1 0; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  min-height: 36px;
+  border-radius: 7px;
+  font-size: var(--sf-fs-caption);
+}
+.sf-root .sf-ctm-risk .sf-ctm-ico { width: 15px; height: 15px; }
+.sf-root .sf-ctm-warn   { color: var(--sf-warn-fg); }
+.sf-root .sf-ctm-danger { color: var(--sf-danger-fg); }
+.sf-root .sf-ctm-risk:hover:not([disabled]) { background: var(--sf-bg-hover-menu); }
+.sf-root .sf-ctm-risk[disabled] { opacity: .4; cursor: not-allowed; }
+
+/* ---------------------------------------------------------------------------
  * Drag feedback
  *
  * In the overlay layer, so neither is clipped by the card's overflow. Both

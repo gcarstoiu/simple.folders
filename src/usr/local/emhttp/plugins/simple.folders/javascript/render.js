@@ -401,7 +401,7 @@
       var button = U.el('button.sf-strip-btn', {
         type: 'button',
         'aria-label': 'Actions for ' + ct.name + ', ' + status.label,
-        'aria-haspopup': 'menu',
+        'aria-haspopup': 'dialog',
         title: ct.name + ' · ' + status.label,
         onClick: function (e) { SF.menus.container(e.currentTarget, ct, 'left'); }
       }, [containerTile(ct, 'sf-strip-tile')]);
@@ -452,7 +452,7 @@
     var iconButton = U.el('button.sf-ct-icon', {
       type: 'button',
       'aria-label': 'Actions for ' + ct.name + ', ' + status.label,
-      'aria-haspopup': 'menu',
+      'aria-haspopup': 'dialog',
       onClick: function (e) { SF.menus.container(e.currentTarget, ct, 'left'); }
     }, [containerTile(ct, 'sf-ct-tile')]);
 
@@ -499,7 +499,7 @@
 
     /* 9 */
     row.appendChild(U.el('div.sf-cell.sf-cell-menu', null, [
-      kebab('Menu for ' + ct.name, function (e) { SF.menus.container(e.currentTarget, ct, 'right'); })
+      kebab('Menu for ' + ct.name, function (e) { SF.menus.container(e.currentTarget, ct, 'right'); }, 'dialog')
     ]));
 
     return row;
@@ -512,6 +512,9 @@
   /* A container's own icon, as Unraid resolved it. The harness (and any
    * container without one) falls back to a letter on a tinted tile, which is
    * what the prototype shows - the plugin never ships third-party logos. */
+  R.containerTile = function (ct, cls) { return containerTile(ct, cls); };
+  R.folderIcon = function (folder) { return folderIconContent(folder); };
+
   function containerTile(ct, cls) {
     if (ct.icon) {
       return U.el('img', {
@@ -604,11 +607,12 @@
     return node;
   }
 
-  function kebab(label, onClick) {
+  /* The container popover is a dialog with groups, not a menu (spec 6.2). */
+  function kebab(label, onClick, popup) {
     return U.el('button.sf-kebab', {
       type: 'button',
       'aria-label': label,
-      'aria-haspopup': 'menu',
+      'aria-haspopup': popup || 'menu',
       onClick: onClick
     }, [U.el('span', { 'aria-hidden': 'true', text: '⋮' })]);
   }

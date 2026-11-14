@@ -5,10 +5,10 @@
  * under the terms of the GNU General Public License version 2, as published
  * by the Free Software Foundation.
  *
- * One popover implementation serves both menus (DESIGN_SPEC.md 6): 260px
- * wide, max-height 76vh with scroll, opens below the trigger or above when
- * there is no room, closes on outside click, on Escape with focus returning
- * to the trigger, and after choosing an item.
+ * One popover shell serves the menus and the container popover
+ * (DESIGN_SPEC.md 6): max-height 76vh with scroll, opens below the trigger or
+ * above when there is no room, closes on outside click, on Escape with focus
+ * returning to the trigger, and after choosing an item.
  *
  * While any job is running every Docker action is disabled (spec 6).
  */
@@ -22,11 +22,23 @@
   var open = null;   // { node, trigger }
 
   /* ---------------------------------------------------------------------
-   * The popover
+   * The popover shell
    * ------------------------------------------------------------------- */
-  function show(trigger, align, title, items) {
+  function mount(trigger, align, node, onKey) {
     M.close();
+    U.layer().appendChild(node);
+    position(node, trigger, align);
 
+    open = { node: node, trigger: trigger };
+
+    /* Deferred so the click that opened it does not immediately close it on
+     * the way back up. */
+    setTimeout(function () { document.addEventListener('mousedown', onOutside, true); }, 0);
+
+    node.addEventListener('keydown', onKey);
+  }
+
+  function show(trigger, align, title, items) {
     var list = U.el('div.sf-menu', { role: 'menu', 'aria-label': title });
     list.appendChild(U.el('div.sf-menu-head', { text: title }));
 
@@ -53,19 +65,10 @@
       list.appendChild(button);
     });
 
-    U.layer().appendChild(list);
-    position(list, trigger, align);
-
-    open = { node: list, trigger: trigger };
-
-    /* Deferred so the click that opened the menu does not immediately close
-     * it on the way back up. */
-    setTimeout(function () { document.addEventListener('mousedown', onOutside, true); }, 0);
+    mount(trigger, align, list, onMenuKey);
 
     var first = list.querySelector('.sf-menu-item:not([disabled])');
     if (first) first.focus();
-
-    list.addEventListener('keydown', onMenuKey);
     return list;
   }
 
@@ -220,79 +223,195 @@
   };
 
   /* ---------------------------------------------------------------------
-   * Container menu (spec 6.2)
+   * Container popover (spec 6.2)
    *
-   * Reachable from the row's kebab AND from a folded folder's icon strip.
+   * Reachable from the row's icon and kebab AND from a folded folder's icon
+   * strip. Not a menu: the four everyday actions sit in a strip whose slots
+   * never move, an update gets a banner only when one is ready, the folder is
+   * a row of chips and the two risky actions share a footer. Each group is
+   * one Tab stop; the arrow keys move within a group.
    * ------------------------------------------------------------------- */
   M.container = function (trigger, ct, align) {
     var S = SF.store;
+    var A = SF.actions;
     var busy = SF.jobs.running();
     var folder = S.folderOf(ct.name);
+    var status = S.status(ct);
     var running = ct.state === 'running';
     var paused  = ct.state === 'paused';
+    var name = ct.name;
 
-    var items = [];
+    /* Every control closes the popover before it acts, so focus is back on
+     * the trigger when a dialog or another page takes over. */
+    function act(fn) { return function () { M.close(); fn(); }; }
 
-    if (paused) {
-      items.push({ text: 'Resume', disabled: busy, action: function () { SF.actions.one(ct, 'resume'); } });
-    } else if (running) {
-      items.push({ text: 'Stop',    disabled: busy, action: function () { SF.actions.one(ct, 'stop'); } });
-      items.push({ text: 'Pause',   disabled: busy, action: function () { SF.actions.one(ct, 'pause'); } });
-      items.push({ text: 'Restart', disabled: busy, action: function () { SF.actions.one(ct, 'restart'); } });
-    } else {
-      items.push({ text: 'Start',   disabled: busy, action: function () { SF.actions.one(ct, 'start'); } });
+    var pop = U.el('div.sf-menu.sf-ctm', { role: 'dialog', 'aria-label': 'Actions for ' + name });
+
+    pop.appendChild(U.el('div.sf-ctm-head', null, [
+      SF.render.containerTile(ct, 'sf-ctm-tile'),
+      U.el('div.sf-ctm-title', null, [
+        U.el('div.sf-ctm-name', { text: name }),
+        U.el('div.sf-ctm-image', { text: ct.image })
+      ]),
+      U.el('span.sf-ctm-state', null, [
+        U.el('span.sf-dot.sf-dot-' + status.kind, { 'aria-hidden': 'true' }),
+        status.label
+      ])
+    ]));
+
+    if (busy) {
+      pop.appendChild(U.el('div.sf-ctm-busy', { role: 'note' }, [
+        U.el('span.sf-mark.sf-mark-active', { 'aria-hidden': 'true' }),
+        U.el('span', { text: (SF.jobs.title() || 'A job is running') + '. Docker actions are off until it finishes.' })
+      ]));
     }
 
-    items.push({
-      text: ct.update === 1 ? 'Update' : 'Force update',
-      hint: ct.update === 1 ? 'ready' : null,
-      tone: ct.update === 1 ? null : 'warn',
-      disabled: busy,
-      action: function () { SF.actions.updateContainers([ct], ct.name); }
+    /* 2 is "rebuild ready": the network it was built on is gone. Recreating
+     * it is the same update_container run as an update. */
+    if (ct.update === 1 || ct.update === 2) {
+      var rebuild = ct.update === 2;
+      pop.appendChild(U.el('div.sf-ctm-update', { 'data-sf-group': '' }, [
+        U.glyph('download', 'sf-ctm-ico'),
+        U.el('span.sf-ctm-update-text', { text: rebuild ? 'Rebuild ready' : 'Update ready' }),
+        U.el('button.sf-ctm-go', {
+          type: 'button',
+          disabled: busy,
+          onClick: act(function () { A.updateContainers([ct], name); })
+        }, rebuild ? 'Rebuild' : 'Update')
+      ]));
+    }
+
+    /* Fixed slots: Start/Stop, Restart, Pause/Resume, WebUI. What cannot run
+     * is greyed out rather than removed. A paused container offers only
+     * Resume, as before. */
+    var slots = [
+      running ? { glyph: 'stop', text: 'Stop', run: 'stop' }
+      : paused ? { glyph: 'stop', text: 'Stop', off: true }
+      : { glyph: 'play', text: 'Start', run: 'start' },
+      { glyph: 'restart', text: 'Restart', run: 'restart', off: !running },
+      paused ? { glyph: 'resume', text: 'Resume', run: 'resume' }
+      : { glyph: 'pause', text: 'Pause', run: 'pause', off: !running },
+      { glyph: 'webui', text: 'WebUI', off: !(running && ct.webui), webui: true }
+    ];
+
+    var strip = U.el('div.sf-ctm-strip', { role: 'toolbar', 'aria-label': 'Run ' + name, 'data-sf-group': '' });
+    slots.forEach(function (slot) {
+      strip.appendChild(U.el('button.sf-ctm-act', {
+        type: 'button',
+        disabled: slot.off || (!!slot.run && busy),
+        title: slot.webui && !ct.webui ? 'No WebUI' : null,
+        onClick: act(function () {
+          if (slot.webui) root.open(ct.webui, '_blank', 'noopener');
+          else A.one(ct, slot.run);
+        })
+      }, [U.glyph(slot.glyph, 'sf-ctm-ico'), U.el('span', { text: slot.text })]));
     });
+    pop.appendChild(strip);
 
     /* The native actions our table displaces. Delegating to core's own
      * functions keeps one implementation of each. */
-    items.push({ divider: true });
-    if (ct.webui && running) {
-      items.push({ text: 'WebUI', action: function () { root.open(ct.webui, '_blank', 'noopener'); } });
-    }
-    if (running && typeof root.openTerminal === 'function') {
-      items.push({ text: 'Console', action: function () { root.openTerminal('docker', ct.name, ct.shell || 'sh'); } });
+    var list = U.el('div.sf-ctm-list', { 'data-sf-group': '' });
+    function row(glyph, text, off, fn) {
+      return U.el('button.sf-menu-item', { type: 'button', disabled: off, onClick: act(fn) }, [
+        U.glyph(glyph, 'sf-ctm-ico'),
+        U.el('span.sf-menu-label', { text: text })
+      ]);
     }
     if (typeof root.openTerminal === 'function') {
-      items.push({ text: 'Logs', action: function () { root.openTerminal('docker', ct.name, '.log'); } });
+      list.appendChild(row('console', 'Console', !running, function () { root.openTerminal('docker', name, ct.shell || 'sh'); }));
+      list.appendChild(row('logs', 'Logs', false, function () { root.openTerminal('docker', name, '.log'); }));
     }
     if (ct.template && typeof root.editContainer === 'function') {
-      items.push({ text: 'Edit', action: function () { root.editContainer(ct.name, ct.template); } });
+      list.appendChild(row('edit', 'Edit container…', false, function () { root.editContainer(name, ct.template); }));
     }
-    if (typeof root.rmContainer === 'function') {
-      items.push({ text: 'Remove', tone: 'danger', disabled: busy,
-        action: function () { root.rmContainer(ct.name, ct.image, ct.id); } });
+    if (list.firstChild) pop.appendChild(list);
+
+    /* The folder as chips: one press moves it, None takes it out. */
+    var chips = U.el('div.sf-ctm-chips', { role: 'group', 'aria-label': 'Folder', 'data-sf-group': '' });
+    function chip(f) {
+      var current = f ? !!folder && folder.id === f.id : !folder;
+      return U.el('button.sf-ctm-chip' + (f ? '' : '.sf-ctm-none'), {
+        type: 'button',
+        'aria-pressed': current ? 'true' : 'false',
+        'data-color': f ? (f.color || 'slate') : null,
+        disabled: busy && !current,
+        title: f ? U.plural((f.resolved || []).length, 'container') : null,
+        onClick: current ? null : act(function () { A.assign(ct, f); })
+      }, [
+        f ? U.el('span.sf-ctm-ftile', { 'aria-hidden': 'true' }, [SF.render.folderIcon(f)]) : null,
+        U.el('span.sf-ctm-chip-name', { text: f ? f.name : 'None' })
+      ]);
     }
+    chips.appendChild(chip(null));
+    S.state.folders.forEach(function (f) { chips.appendChild(chip(f)); });
+    chips.appendChild(U.el('button.sf-ctm-chip.sf-ctm-new', {
+      type: 'button',
+      disabled: busy,
+      onClick: act(function () { SF.editor.open(null, { preselect: name }); })
+    }, [U.glyph('plus', 'sf-ctm-ico'), U.el('span.sf-ctm-chip-name', { text: 'New folder' })]));
 
-    /* Move / add to folder */
-    items.push({ divider: true });
-    items.push({ heading: true, text: folder ? 'Move to folder' : 'Add to folder' });
+    pop.appendChild(U.el('div.sf-ctm-folder', null, [
+      U.el('div.sf-menu-sub', { text: 'Folder' }),
+      chips
+    ]));
 
-    S.state.folders.forEach(function (f) {
-      if (folder && f.id === folder.id) return;
-      items.push({
-        text: f.name,
-        hint: String((f.resolved || []).length),
+    /* Both ask first: ours for Force update, Unraid's own for Remove. */
+    pop.appendChild(U.el('div.sf-ctm-foot', { 'data-sf-group': '' }, [
+      U.el('button.sf-ctm-risk.sf-ctm-warn', {
+        type: 'button',
         disabled: busy,
-        action: function () { SF.actions.assign(ct, f); }
-      });
-    });
+        onClick: act(function () { A.confirmForceUpdateOne(ct); })
+      }, [U.glyph('force', 'sf-ctm-ico'), 'Force update…']),
+      typeof root.rmContainer === 'function'
+        ? U.el('button.sf-ctm-risk.sf-ctm-danger', {
+            type: 'button',
+            disabled: busy,
+            onClick: act(function () { root.rmContainer(name, ct.image, ct.id); })
+          }, [U.glyph('remove', 'sf-ctm-ico'), 'Remove…'])
+        : null
+    ]));
 
-    items.push({ text: 'New folder…', disabled: busy,
-      action: function () { SF.editor.open(null, { preselect: ct.name }); } });
+    mount(trigger, align, pop, onPopoverKey);
 
-    if (folder) {
-      items.push({ text: 'Remove from ' + folder.name, disabled: busy,
-        action: function () { SF.actions.assign(ct, null); } });
+    var groups = popoverGroups(pop);
+    if (groups.length) entryOf(groups[0]).focus();
+    return pop;
+  };
+
+  /* Groups that have something to focus, in document order. */
+  function popoverGroups(pop) {
+    return Array.prototype.slice.call(pop.querySelectorAll('[data-sf-group]'))
+      .map(function (node) {
+        return { node: node, items: Array.prototype.slice.call(node.querySelectorAll('button:not([disabled])')) };
+      })
+      .filter(function (g) { return g.items.length; });
+  }
+
+  /* Entering the chips lands on the current folder. */
+  function entryOf(group) {
+    return group.node.querySelector('[aria-pressed="true"]:not([disabled])') || group.items[0];
+  }
+
+  /* Tab and Shift+Tab move between groups and close the popover past either
+   * end, as leaving a menu does; the arrow keys move within a group. */
+  function onPopoverKey(e) {
+    var groups = popoverGroups(this);
+    var at = -1;
+    groups.forEach(function (g, i) { if (g.node.contains(document.activeElement)) at = i; });
+
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      var next = at + (e.shiftKey ? -1 : 1);
+      if (next < 0 || next >= groups.length) { M.close(); return; }
+      entryOf(groups[next]).focus();
+      return;
     }
 
-    return show(trigger, align, ct.name, items);
-  };
+    var step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
+    if (!step || at < 0) return;
+    e.preventDefault();
+    var items = groups[at].items;
+    var i = items.indexOf(document.activeElement);
+    items[(i + step + items.length) % items.length].focus();
+  }
 })(window);

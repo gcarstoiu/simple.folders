@@ -34,6 +34,9 @@ function ok(cond, detail) {
   if (!cond) throw new Error(detail || 'assertion failed');
 }
 
+/* Popovers fade in over 140ms; a shot taken sooner catches them half drawn. */
+const settle = () => new Promise((r) => setTimeout(r, 250));
+
 async function shot(name) {
   await page.screenshot({ path: join(SHOTS, `${name}.png`) });
 }
@@ -93,13 +96,158 @@ const TESTS = [
     await page.setViewport({ width: 1440, height: 1000 });
   }),
 
-  t('clicking a folded icon opens that container\'s menu', async () => {
+  t('clicking a folded icon opens that container\'s popover', async () => {
     await fresh('&folded=all');
     await page.click('.sf-row-folder[data-folder="f-media"] .sf-strip-btn');
-    await page.waitForSelector('.sf-menu', { timeout: 3000 });
-    const head = await text('.sf-menu-head');
-    ok(head === 'plex', `menu header was "${head}", expected the container name`);
+    await page.waitForSelector('.sf-ctm', { timeout: 3000 });
+    const head = await text('.sf-ctm-name');
+    ok(head === 'plex', `popover header was "${head}", expected the container name`);
+    ok(await text('.sf-ctm-state') === 'Running', 'the header should show the state');
+    await settle();
     await shot('04-container-menu-from-strip');
+  }),
+
+  t('the popover strip keeps its slots and greys what cannot run', async () => {
+    await fresh('&folded=all');
+    const cases = [
+      ['plex',        [['Stop', true],  ['Restart', true],  ['Pause', true],   ['WebUI', true]]],
+      ['zigbee2mqtt', [['Stop', false], ['Restart', false], ['Resume', true],  ['WebUI', false]]],
+      ['prowlarr',    [['Start', true], ['Restart', false], ['Pause', false],  ['WebUI', false]]]
+    ];
+    for (const [name, want] of cases) {
+      await openContainer(name);
+      const got = await page.$$eval('.sf-ctm-act', (n) => n.map((b) => [b.textContent.trim(), !b.disabled]));
+      ok(JSON.stringify(got) === JSON.stringify(want), `${name}: strip was ${JSON.stringify(got)}`);
+      ok(await count('.sf-ctm-update') === 0, `${name} has no update, so no banner`);
+      await page.keyboard.press('Escape');
+      await page.waitForFunction(() => !document.querySelector('.sf-ctm'), { timeout: 3000 });
+    }
+
+    await openContainer('sonarr');
+    ok(await text('.sf-ctm-update-text') === 'Update ready', 'sonarr should show the update banner');
+    const risky = await page.$$eval('.sf-ctm-risk', (n) => n.map((b) => b.textContent.trim()));
+    ok(JSON.stringify(risky) === '["Force update…","Remove…"]', `footer was ${JSON.stringify(risky)}`);
+
+    /* The overlay layer is outside #sf-root: Unraid's button styling must
+     * not reach the strip or the chips. */
+    for (const sel of ['.sf-ctm-act', '.sf-ctm-chip']) {
+      const s = await page.$eval(sel, (n) => {
+        const c = getComputedStyle(n);
+        return { transform: c.textTransform, minWidth: c.minWidth, border: c.borderTopWidth };
+      });
+      ok(s.transform === 'none', `${sel} got uppercased by Unraid`);
+      ok(s.minWidth !== '86px', `${sel} picked up Unraid's min-width`);
+      ok(s.border === '1px', `${sel} lost its own border (${s.border})`);
+    }
+    await settle();
+    await shot('04b-container-popover-update');
+  }),
+
+  t('a folder chip moves the container and None takes it out', async () => {
+    await fresh();
+    const folderOf = (name) => page.evaluate((n) => {
+      const f = window.SimpleFolders.store.folderOf(n);
+      return f ? f.id : null;
+    }, name);
+
+    await openContainer('immich');
+    const chips = await page.$$eval('.sf-ctm-chip',
+      (n) => n.map((b) => [b.textContent.trim(), b.getAttribute('aria-pressed')]));
+    ok(chips.map((c) => c[0]).join('|') === 'None|Media|Smart home|AI|New folder',
+       `chips were ${JSON.stringify(chips)}`);
+    ok(chips[0][1] === 'true', 'None should be pressed for a container in no folder');
+
+    await clickChip('AI');
+    await page.waitForFunction(() => {
+      const f = window.SimpleFolders.store.folderOf('immich');
+      return f && f.id === 'f-ai';
+    }, { timeout: 5000 });
+    ok(!(await page.$('.sf-ctm')), 'choosing a chip should close the popover');
+
+    await openContainer('immich');
+    const pressed = await page.$eval('.sf-ctm-chip[aria-pressed="true"]', (n) => n.textContent.trim());
+    ok(pressed === 'AI', `pressed chip was "${pressed}"`);
+    await clickChip('None');
+    await page.waitForFunction(() => !window.SimpleFolders.store.folderOf('immich'), { timeout: 5000 });
+    ok(await folderOf('immich') === null, 'None should take it out of its folder');
+  }),
+
+  t('force update on one container asks first', async () => {
+    await fresh();
+    await openContainer('plex');
+    await page.evaluate(() => document.querySelector('.sf-ctm-risk.sf-ctm-warn').click());
+    await page.waitForSelector('.sf-dialog', { timeout: 3000 });
+    const title = await text('.sf-dialog-title');
+    ok(title === 'Force update “plex”?', `title was: ${title}`);
+    ok(!(await page.$('.sf-panel')), 'nothing should run before confirming');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.sf-dialog'), { timeout: 3000 });
+  }),
+
+  t('the popover names the running job and greys Docker actions', async () => {
+    await fresh();
+    /* Hold a job open through the job engine itself: with HARNESS_LATENCY
+     * at 0 a real one can finish before the popover is read. */
+    await page.evaluate(() => {
+      const hold = new Promise((resolve) => { window.__sfRelease = resolve; });
+      window.SimpleFolders.jobs.run('Stopping Media', ['plex'],
+        [{ name: 'plex', note: 'stopping', run: () => hold }]);
+    });
+    await page.waitForSelector('.sf-panel', { timeout: 3000 });
+
+    await page.evaluate(() => document.querySelector('[aria-label^="Actions for nextcloud,"]').click());
+    await page.waitForSelector('.sf-ctm', { timeout: 3000 });
+    const note = await text('.sf-ctm-busy');
+    ok(note === 'Stopping Media. Docker actions are off until it finishes.', `note was: ${note}`);
+
+    const enabled = await page.$$eval('.sf-ctm-act:not([disabled]), .sf-ctm-risk:not([disabled]), .sf-ctm-go:not([disabled])',
+      (n) => n.map((b) => b.textContent.trim()));
+    ok(JSON.stringify(enabled) === '["WebUI"]', `still enabled while busy: ${JSON.stringify(enabled)}`);
+    const chips = await page.$$eval('.sf-ctm-chip:not([disabled])', (n) => n.map((b) => b.textContent.trim()));
+    ok(JSON.stringify(chips) === '["None"]', `chips still enabled while busy: ${JSON.stringify(chips)}`);
+    await settle();
+    await shot('04c-container-popover-busy');
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => window.__sfRelease());
+  }),
+
+  t('Tab moves between popover groups, arrows within, and Escape returns focus', async () => {
+    await fresh();
+    const focused = () => page.evaluate(() => {
+      const a = document.activeElement;
+      return a.getAttribute('aria-label') || a.textContent.trim();
+    });
+
+    await page.focus('[aria-label^="Actions for plex,"]');
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.sf-ctm', { timeout: 3000 });
+
+    ok(await focused() === 'Stop', `first focus was "${await focused()}"`);
+    await page.keyboard.press('ArrowRight');
+    ok(await focused() === 'Restart', `ArrowRight went to "${await focused()}"`);
+    await page.keyboard.press('Tab');
+    ok(await focused() === 'Console', `Tab went to "${await focused()}"`);
+    await page.keyboard.press('ArrowDown');
+    ok(await focused() === 'Logs', `ArrowDown went to "${await focused()}"`);
+    await page.keyboard.press('Tab');
+    ok(await focused() === 'Media', `the chips should open on the current folder, got "${await focused()}"`);
+    await page.keyboard.press('Tab');
+    ok(await focused() === 'Force update…', `Tab went to "${await focused()}"`);
+    await page.keyboard.down('Shift');
+    await page.keyboard.press('Tab');
+    await page.keyboard.up('Shift');
+    ok(await focused() === 'Media', `Shift+Tab went to "${await focused()}"`);
+
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.sf-ctm'), { timeout: 3000 });
+    ok((await focused()).startsWith('Actions for plex'), `Escape left focus on "${await focused()}"`);
+
+    /* Tab past the last group leaves, as leaving a menu does. */
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.sf-ctm', { timeout: 3000 });
+    for (let i = 0; i < 4; i++) await page.keyboard.press('Tab');
+    await page.waitForFunction(() => !document.querySelector('.sf-ctm'), { timeout: 3000 });
+    ok((await focused()).startsWith('Actions for plex'), `Tab out left focus on "${await focused()}"`);
   }),
 
   t('clicking the folder icon opens the folder menu', async () => {
@@ -971,6 +1119,22 @@ async function clickMenuItem(label) {
     return true;
   }, label);
   if (!clicked) throw new Error(`menu item "${label}" not found or disabled`);
+}
+
+/* A container's popover, from its strip icon or its row icon. */
+async function openContainer(name) {
+  await page.evaluate((n) => document.querySelector(`[aria-label^="Actions for ${n},"]`).click(), name);
+  await page.waitForSelector('.sf-ctm', { timeout: 3000 });
+}
+
+async function clickChip(label) {
+  const clicked = await page.evaluate((want) => {
+    const chip = [...document.querySelectorAll('.sf-ctm-chip')].find((b) => b.textContent.trim() === want);
+    if (!chip || chip.disabled) return false;
+    chip.click();
+    return true;
+  }, label);
+  if (!clicked) throw new Error(`chip "${label}" not found or disabled`);
 }
 
 /* Tick one checklist row at a time, re-querying between clicks. */

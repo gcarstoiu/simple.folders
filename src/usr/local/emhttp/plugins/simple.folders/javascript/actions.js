@@ -253,6 +253,19 @@
     });
   };
 
+  /* The folder's Force update asks first; one container's does too. */
+  A.confirmForceUpdateOne = function (ct) {
+    SF.dialog.confirm({
+      title: 'Force update “' + ct.name + '”?',
+      body: 'Its image is pulled again and the container is recreated from its '
+          + 'template. If it is running it comes back up; if it is stopped it '
+          + 'stays stopped.',
+      confirmText: 'Force update',
+      tone: 'warn',
+      onConfirm: function () { A.updateContainers([ct], ct.name); }
+    });
+  };
+
   A.confirmDelete = function (folder) {
     var count = SF.store.members(folder).length;
 

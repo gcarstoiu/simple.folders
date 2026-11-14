@@ -25,6 +25,7 @@
   var PANEL_MS = 6500;
 
   J.running = function () { return current !== null; };
+  J.title = function () { return current ? current.title : null; };
 
   /* ---------------------------------------------------------------------
    * Toasts (spec 7.2)
