@@ -111,7 +111,7 @@ const TESTS = [
     await fresh('&folded=all');
     const cases = [
       ['plex',        [['Stop', true],  ['Restart', true],  ['Pause', true],   ['WebUI', true]]],
-      ['zigbee2mqtt', [['Stop', false], ['Restart', false], ['Resume', true],  ['WebUI', false]]],
+      ['zigbee2mqtt', [['Stop', true],  ['Restart', false], ['Resume', true],  ['WebUI', false]]],
       ['prowlarr',    [['Start', true], ['Restart', false], ['Pause', false],  ['WebUI', false]]]
     ];
     for (const [name, want] of cases) {
@@ -141,6 +141,17 @@ const TESTS = [
     }
     await settle();
     await shot('04b-container-popover-update');
+  }),
+
+  t('a paused container stops from its popover', async () => {
+    await fresh('&folded=all');
+    await openContainer('zigbee2mqtt');
+    await page.evaluate(() => [...document.querySelectorAll('.sf-ctm-act')]
+      .find((b) => b.textContent.trim() === 'Stop').click());
+    await page.waitForFunction(() => {
+      const ct = window.SimpleFolders.store.container('zigbee2mqtt');
+      return ct && ct.state === 'stopped';
+    }, { timeout: 10000 });
   }),
 
   t('a folder chip moves the container and None takes it out', async () => {

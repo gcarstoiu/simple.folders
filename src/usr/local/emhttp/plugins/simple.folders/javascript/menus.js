@@ -282,11 +282,10 @@
     }
 
     /* Fixed slots: Start/Stop, Restart, Pause/Resume, WebUI. What cannot run
-     * is greyed out rather than removed. A paused container offers only
-     * Resume, as before. */
+     * is greyed out rather than removed. A paused container can be stopped,
+     * as the folder's Stop all already does. */
     var slots = [
-      running ? { glyph: 'stop', text: 'Stop', run: 'stop' }
-      : paused ? { glyph: 'stop', text: 'Stop', off: true }
+      running || paused ? { glyph: 'stop', text: 'Stop', run: 'stop' }
       : { glyph: 'play', text: 'Start', run: 'start' },
       { glyph: 'restart', text: 'Restart', run: 'restart', off: !running },
       paused ? { glyph: 'resume', text: 'Resume', run: 'resume' }
