@@ -306,20 +306,6 @@
       .catch(function (err) { SF.jobs.toast(err.message, 'error'); });
   };
 
-  A.openWebUIs = function (folder) {
-    var urls = SF.store.members(folder)
-      .filter(function (ct) { return ct.state === 'running' && ct.webui; })
-      .map(function (ct) { return ct.webui; });
-
-    if (!urls.length) {
-      SF.jobs.toast('Nothing to do in “' + folder.name + '”');
-      return;
-    }
-
-    urls.forEach(function (url) { root.open(url, '_blank', 'noopener'); });
-    SF.jobs.toast(U.plural(urls.length, 'WebUI') + ' opened');
-  };
-
   /* ---------------------------------------------------------------------
    * Autostart
    *

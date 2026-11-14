@@ -5,7 +5,7 @@
  * under the terms of the GNU General Public License version 2, as published
  * by the Free Software Foundation.
  *
- * One popover shell serves the menus and the container popover
+ * One popover shell serves the menu and the folder and container popovers
  * (DESIGN_SPEC.md 6): max-height 76vh with scroll, opens below the trigger or
  * above when there is no room, closes on outside click, on Escape with focus
  * returning to the trigger, and after choosing an item.
@@ -125,82 +125,185 @@
   M.isOpen = function () { return !!open; };
 
   /* ---------------------------------------------------------------------
-   * Folder menu (spec 6.1)
+   * Shared popover parts
+   * ------------------------------------------------------------------- */
+
+  /* Every control closes the popover before it acts, so focus is back on
+   * the trigger when a dialog or another page takes over. */
+  function act(fn) { return function () { M.close(); fn(); }; }
+
+  function listRow(glyph, text, off, fn) {
+    return U.el('button.sf-menu-item', { type: 'button', disabled: off, onClick: act(fn) }, [
+      U.glyph(glyph, 'sf-ctm-ico'),
+      U.el('span.sf-menu-label', { text: text })
+    ]);
+  }
+
+  function busyNote() {
+    return U.el('div.sf-ctm-busy', { role: 'note' }, [
+      U.el('span.sf-mark.sf-mark-active', { 'aria-hidden': 'true' }),
+      U.el('span', { text: (SF.jobs.title() || 'A job is running') + '. Docker actions are off until it finishes.' })
+    ]);
+  }
+
+  function ordinal(n) {
+    var s = ['th', 'st', 'nd', 'rd'], v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  }
+
+  /* ---------------------------------------------------------------------
+   * Folder popover (spec 6.1)
+   *
+   * Built from the container popover's parts: a header with a state pill,
+   * a banner only when updates are ready, the four bulk actions in fixed
+   * slots, the folder's own rows, and the two risky actions in a footer.
+   * WebUIs are chips that open one tab each: browsers block every tab after
+   * the first that a single click tries to open.
    * ------------------------------------------------------------------- */
   M.folder = function (trigger, folder, align) {
     var S = SF.store;
+    var A = SF.actions;
     var sum = S.summary(folder);
     var busy = SF.jobs.running();
     var folders = S.state.folders;
     var index = folders.indexOf(S.folder(folder.id));
+    var empty = sum.total === 0;
+    var up = sum.running + sum.paused;
 
-    var stoppedCount = sum.stopped;
-    var upCount      = sum.running + sum.paused;
-    var empty        = sum.total === 0;
+    var pop = U.el('div.sf-menu.sf-fm', { role: 'dialog', 'aria-label': 'Commands for folder ' + folder.name });
 
-    var items = [
-      { text: 'Start all',
-        hint: stoppedCount ? stoppedCount + ' stopped' : 'all up',
-        disabled: busy || !stoppedCount,
-        action: function () { SF.actions.bulk(folder, 'start'); } },
+    var segments = U.el('span.sf-fm-segs', { 'aria-hidden': 'true' });
+    sum.members.forEach(function (ct) {
+      segments.appendChild(U.el('span.sf-fm-seg.sf-seg-' + S.status(ct).kind));
+    });
+    pop.appendChild(U.el('div.sf-ctm-head', null, [
+      U.el('span.sf-fm-tile', { 'data-color': folder.color || 'slate', 'aria-hidden': 'true' },
+        [SF.render.folderIcon(folder)]),
+      U.el('div.sf-ctm-title', null, [
+        U.el('div.sf-ctm-name', { text: folder.name }),
+        U.el('div.sf-ctm-image', { text: folder.delay ? folder.delay + ' s apart' : 'no delay' })
+      ]),
+      U.el('span.sf-ctm-state', { title: sum.running + ' of ' + sum.total + ' running' },
+        [segments, sum.running + ' running'])
+    ]));
 
-      { text: 'Stop all',
-        hint: folder.reverseStop ? 'reverse order' : null,
-        disabled: busy || !upCount,
-        action: function () { SF.actions.bulk(folder, 'stop'); } },
+    if (busy) pop.appendChild(busyNote());
 
-      { text: 'Restart all',
-        hint: sum.running ? sum.running + ' running' : null,
-        disabled: busy || !sum.running,
-        action: function () { SF.actions.bulk(folder, 'restart'); } },
+    if (sum.updates) {
+      pop.appendChild(U.el('div.sf-ctm-update', { 'data-sf-group': '' }, [
+        U.glyph('download', 'sf-ctm-ico'),
+        U.el('span.sf-ctm-update-text', { text: U.plural(sum.updates, 'update') + ' ready' }),
+        U.el('button.sf-ctm-go', {
+          type: 'button',
+          disabled: busy,
+          onClick: act(function () { A.update(folder, false); })
+        }, 'Update')
+      ]));
+    }
 
-      /* Pause and Resume share a slot: whichever applies to the folder's
-       * current state (spec 6.1). */
+    /* Fixed slots, each with the number it acts on. Pause and Resume share
+     * the last: whichever applies to the folder's current state. */
+    var slots = [
+      { glyph: 'play', text: 'Start all', run: 'start', off: !sum.stopped,
+        count: sum.stopped ? sum.stopped + ' stopped' : 'all up' },
+      { glyph: 'stop', text: 'Stop all', run: 'stop', off: !up,
+        count: up ? up + ' up' : 'none up' },
+      { glyph: 'restart', text: 'Restart all', run: 'restart', off: !sum.running,
+        count: sum.running + ' running' },
       sum.paused
-        ? { text: 'Resume all', hint: sum.paused + ' paused', disabled: busy,
-            action: function () { SF.actions.bulk(folder, 'resume'); } }
-        : { text: 'Pause all', hint: null, disabled: busy || !sum.running,
-            action: function () { SF.actions.bulk(folder, 'pause'); } },
-
-      { divider: true },
-
-      { text: 'Check for updates',
-        disabled: busy || empty,
-        action: function () { SF.actions.checkUpdates(folder); } },
-
-      sum.updates
-        ? { text: 'Update ' + U.plural(sum.updates, 'container'), hint: 'ready', disabled: busy,
-            action: function () { SF.actions.update(folder, false); } }
-        : null,
-
-      { text: 'Force update all',
-        hint: String(sum.total),
-        tone: 'warn',
-        disabled: busy || empty,
-        action: function () { SF.actions.confirmForceUpdate(folder); } },
-
-      { divider: true },
-
-      { text: 'Open WebUIs',
-        hint: sum.running ? String(sum.running) : null,
-        disabled: !sum.running,
-        action: function () { SF.actions.openWebUIs(folder); } },
-
-      { text: 'Edit folder…',
-        action: function () { SF.editor.open(folder); } },
-
-      { text: 'Move folder up',   disabled: index <= 0,
-        action: function () { SF.actions.moveFolder(folder, 'up'); } },
-      { text: 'Move folder down', disabled: index < 0 || index >= folders.length - 1,
-        action: function () { SF.actions.moveFolder(folder, 'down'); } },
-
-      { divider: true },
-
-      { text: 'Delete folder', tone: 'danger', disabled: busy,
-        action: function () { SF.actions.confirmDelete(folder); } }
+        ? { glyph: 'resume', text: 'Resume all', run: 'resume', off: false,
+            count: sum.paused + ' paused' }
+        : { glyph: 'pause', text: 'Pause all', run: 'pause', off: !sum.running,
+            count: sum.running + ' running' }
     ];
+    var strip = U.el('div.sf-ctm-strip', { role: 'toolbar', 'aria-label': 'Run ' + folder.name, 'data-sf-group': '' });
+    slots.forEach(function (slot) {
+      strip.appendChild(U.el('button.sf-ctm-act.sf-fm-act', {
+        type: 'button',
+        'aria-label': slot.text + ', ' + slot.count,
+        disabled: busy || slot.off,
+        onClick: act(function () { A.bulk(folder, slot.run); })
+      }, [
+        U.glyph(slot.glyph, 'sf-ctm-ico'),
+        U.el('span.sf-fm-act-label', { text: slot.text }),
+        U.el('span.sf-fm-count', { text: slot.count })
+      ]));
+    });
+    pop.appendChild(strip);
 
-    return show(trigger, align, folder.name, items);
+    pop.appendChild(U.el('div.sf-ctm-list', { 'data-sf-group': '' }, [
+      listRow('search', 'Check for updates', busy || empty, function () { A.checkUpdates(folder); }),
+      listRow('edit', 'Edit folder…', false, function () { SF.editor.open(folder); })
+    ]));
+
+    pop.appendChild(U.el('div.sf-fm-pos', { role: 'group', 'aria-label': 'Folder position', 'data-sf-group': '' }, [
+      U.glyph('order', 'sf-ctm-ico'),
+      U.el('span.sf-fm-pos-label', { text: 'Position' }),
+      U.el('span.sf-fm-pos-value', { text: ordinal(index + 1) + ' of ' + folders.length }),
+      U.el('button.sf-fm-move', {
+        type: 'button',
+        'aria-label': 'Move ' + folder.name + ' up',
+        title: 'Move up',
+        disabled: index <= 0,
+        onClick: act(function () { A.moveFolder(folder, 'up'); })
+      }, [U.glyph('up', 'sf-ctm-ico')]),
+      U.el('button.sf-fm-move', {
+        type: 'button',
+        'aria-label': 'Move ' + folder.name + ' down',
+        title: 'Move down',
+        disabled: index < 0 || index >= folders.length - 1,
+        onClick: act(function () { A.moveFolder(folder, 'down'); })
+      }, [U.glyph('down', 'sf-ctm-ico')])
+    ]));
+
+    /* One chip per container with a WebUI; only a running one opens. */
+    var withUi = sum.members.filter(function (ct) { return !!ct.webui; });
+    var web = U.el('div.sf-fm-web', null, [
+      U.el('div.sf-fm-web-head', null, [
+        U.el('span.sf-menu-sub', { text: 'WebUI' }),
+        withUi.length ? U.el('span.sf-menu-hint', { text: 'one tab per tap' }) : null
+      ])
+    ]);
+    if (withUi.length) {
+      var chips = U.el('div.sf-ctm-chips', { role: 'group', 'aria-label': 'WebUIs in ' + folder.name, 'data-sf-group': '' });
+      withUi.forEach(function (ct) {
+        var on = ct.state === 'running';
+        chips.appendChild(U.el('button.sf-ctm-chip.sf-fm-web-chip', {
+          type: 'button',
+          disabled: !on,
+          title: on ? ct.webui : S.status(ct).label,
+          onClick: act(function () { root.open(ct.webui, '_blank', 'noopener'); })
+        }, [
+          SF.render.containerTile(ct, 'sf-fm-ctile'),
+          U.el('span.sf-ctm-chip-name', { text: ct.name }),
+          U.glyph('webui', 'sf-fm-ext')
+        ]));
+      });
+      web.appendChild(chips);
+    } else {
+      web.appendChild(U.el('div.sf-fm-empty', { text: 'No container in ' + folder.name + ' has a WebUI' }));
+    }
+    pop.appendChild(web);
+
+    /* Both ask first. */
+    pop.appendChild(U.el('div.sf-ctm-foot', { 'data-sf-group': '' }, [
+      U.el('button.sf-ctm-risk.sf-ctm-warn', {
+        type: 'button',
+        disabled: busy || empty,
+        onClick: act(function () { A.confirmForceUpdate(folder); })
+      }, [U.glyph('force', 'sf-ctm-ico'), 'Force update all…']),
+      U.el('button.sf-ctm-risk.sf-ctm-danger', {
+        type: 'button',
+        disabled: busy,
+        onClick: act(function () { A.confirmDelete(folder); })
+      }, [U.glyph('remove', 'sf-ctm-ico'), 'Delete folder…'])
+    ]));
+
+    mount(trigger, align, pop, onPopoverKey);
+
+    var groups = popoverGroups(pop);
+    if (groups.length) entryOf(groups[0]).focus();
+    return pop;
   };
 
   /* ---------------------------------------------------------------------
@@ -241,10 +344,6 @@
     var paused  = ct.state === 'paused';
     var name = ct.name;
 
-    /* Every control closes the popover before it acts, so focus is back on
-     * the trigger when a dialog or another page takes over. */
-    function act(fn) { return function () { M.close(); fn(); }; }
-
     var pop = U.el('div.sf-menu.sf-ctm', { role: 'dialog', 'aria-label': 'Actions for ' + name });
 
     pop.appendChild(U.el('div.sf-ctm-head', null, [
@@ -259,12 +358,7 @@
       ])
     ]));
 
-    if (busy) {
-      pop.appendChild(U.el('div.sf-ctm-busy', { role: 'note' }, [
-        U.el('span.sf-mark.sf-mark-active', { 'aria-hidden': 'true' }),
-        U.el('span', { text: (SF.jobs.title() || 'A job is running') + '. Docker actions are off until it finishes.' })
-      ]));
-    }
+    if (busy) pop.appendChild(busyNote());
 
     /* 2 is "rebuild ready": the network it was built on is gone. Recreating
      * it is the same update_container run as an update. */
@@ -310,18 +404,12 @@
     /* The native actions our table displaces. Delegating to core's own
      * functions keeps one implementation of each. */
     var list = U.el('div.sf-ctm-list', { 'data-sf-group': '' });
-    function row(glyph, text, off, fn) {
-      return U.el('button.sf-menu-item', { type: 'button', disabled: off, onClick: act(fn) }, [
-        U.glyph(glyph, 'sf-ctm-ico'),
-        U.el('span.sf-menu-label', { text: text })
-      ]);
-    }
     if (typeof root.openTerminal === 'function') {
-      list.appendChild(row('console', 'Console', !running, function () { root.openTerminal('docker', name, ct.shell || 'sh'); }));
-      list.appendChild(row('logs', 'Logs', false, function () { root.openTerminal('docker', name, '.log'); }));
+      list.appendChild(listRow('console', 'Console', !running, function () { root.openTerminal('docker', name, ct.shell || 'sh'); }));
+      list.appendChild(listRow('logs', 'Logs', false, function () { root.openTerminal('docker', name, '.log'); }));
     }
     if (ct.template && typeof root.editContainer === 'function') {
-      list.appendChild(row('edit', 'Edit container…', false, function () { root.editContainer(name, ct.template); }));
+      list.appendChild(listRow('edit', 'Edit container…', false, function () { root.editContainer(name, ct.template); }));
     }
     if (list.firstChild) pop.appendChild(list);
 

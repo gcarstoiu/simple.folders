@@ -174,8 +174,10 @@
 .sf-root .sf-ctm-act[disabled] { opacity: .38; cursor: not-allowed; }
 
 .sf-root .sf-ctm-list { padding: 4px 0; border-top: 1px solid var(--sf-border-popover); }
-.sf-root .sf-ctm .sf-menu-item { justify-content: flex-start; }
-.sf-root .sf-ctm .sf-menu-item .sf-ctm-ico { color: var(--sf-text-muted); }
+.sf-root .sf-ctm .sf-menu-item,
+.sf-root .sf-fm .sf-menu-item { justify-content: flex-start; }
+.sf-root .sf-ctm .sf-menu-item .sf-ctm-ico,
+.sf-root .sf-fm .sf-menu-item .sf-ctm-ico { color: var(--sf-text-muted); }
 
 .sf-root .sf-ctm-folder { border-top: 1px solid var(--sf-border-popover); }
 .sf-root .sf-ctm-folder .sf-menu-sub { padding: 9px 9px 6px; }
@@ -226,6 +228,68 @@
 .sf-root .sf-ctm-danger { color: var(--sf-danger-fg); }
 .sf-root .sf-ctm-risk:hover:not([disabled]) { background: var(--sf-bg-hover-menu); }
 .sf-root .sf-ctm-risk[disabled] { opacity: .4; cursor: not-allowed; }
+
+/* ---------------------------------------------------------------------------
+ * Folder popover (spec 6.1)
+ *
+ * The container popover's parts (.sf-ctm-*) plus a folder tile, one
+ * segment per member in the pill, counts in the strip, a position row and
+ * WebUI chips.
+ * ------------------------------------------------------------------------- */
+.sf-root .sf-menu.sf-fm { width: var(--sf-ctm-w, 288px); }
+
+.sf-root .sf-fm-tile {
+  flex: none; display: grid; place-items: center;
+  width: 36px; height: 36px; border-radius: var(--sf-r-tile); overflow: hidden;
+  background: var(--sf-slate-tile); color: var(--sf-slate-glyph);
+}
+.sf-root .sf-fm-tile > svg { width: 20px; height: 20px; }
+.sf-root .sf-fm-tile > img,
+.sf-root .sf-fm-tile > span { width: 100%; height: 100%; border-radius: 0; object-fit: contain; }
+.sf-root .sf-fm-tile[data-color="blue"]   { background: var(--sf-blue-tile);   color: var(--sf-blue-glyph); }
+.sf-root .sf-fm-tile[data-color="teal"]   { background: var(--sf-teal-tile);   color: var(--sf-teal-glyph); }
+.sf-root .sf-fm-tile[data-color="green"]  { background: var(--sf-green-tile);  color: var(--sf-green-glyph); }
+.sf-root .sf-fm-tile[data-color="amber"]  { background: var(--sf-amber-tile);  color: var(--sf-amber-glyph); }
+.sf-root .sf-fm-tile[data-color="orange"] { background: var(--sf-orange-tile); color: var(--sf-orange-glyph); }
+.sf-root .sf-fm-tile[data-color="rose"]   { background: var(--sf-rose-tile);   color: var(--sf-rose-glyph); }
+.sf-root .sf-fm-tile[data-color="violet"] { background: var(--sf-violet-tile); color: var(--sf-violet-glyph); }
+
+.sf-root .sf-fm .sf-ctm-state { gap: 7px; white-space: nowrap; }
+.sf-root .sf-fm-segs { display: inline-flex; gap: 2px; }
+/* Colour from the status column's .sf-seg-* classes. */
+.sf-root .sf-fm-seg { width: 5px; height: 10px; border-radius: 2px; }
+
+.sf-root .sf-fm-act { gap: 3px; padding: 9px 2px 7px; line-height: 1.2; }
+.sf-root .sf-fm-act .sf-ctm-ico { margin-bottom: 2px; }
+.sf-root .sf-fm-count {
+  font-family: var(--sf-font-mono); font-size: 10px;
+  color: var(--sf-text-faint); white-space: nowrap;
+}
+
+.sf-root .sf-fm-pos {
+  display: flex; align-items: center; gap: 8px;
+  min-height: 40px; padding: 2px 4px 6px 9px;
+}
+.sf-root .sf-fm-pos > .sf-ctm-ico { flex: none; width: 16px; height: 16px; color: var(--sf-text-muted); }
+.sf-root .sf-fm-pos-label { flex: 1 1 auto; font-size: var(--sf-fs-small); color: var(--sf-text); }
+.sf-root .sf-fm-pos-value { flex: none; font-family: var(--sf-font-mono); font-size: var(--sf-fs-eyebrow); color: var(--sf-text-faint); }
+.sf-root .sf-fm-move {
+  flex: none; display: inline-grid; place-items: center;
+  width: 34px; height: 32px;
+  border: 1px solid var(--sf-border-row); border-radius: 7px;
+  background: var(--sf-bg-well); color: var(--sf-text-secondary);
+}
+.sf-root .sf-fm-move .sf-ctm-ico { width: 15px; height: 15px; }
+.sf-root .sf-fm-move:hover:not([disabled]) { background: var(--sf-bg-hover-menu); }
+.sf-root .sf-fm-move[disabled] { opacity: .38; cursor: not-allowed; }
+
+.sf-root .sf-fm-web { border-top: 1px solid var(--sf-border-popover); }
+.sf-root .sf-fm-web-head { display: flex; justify-content: space-between; align-items: baseline; padding: 9px 9px 6px; }
+.sf-root .sf-fm-web-head .sf-menu-sub { padding: 0; }
+.sf-root .sf-fm-ctile { flex: none; width: 22px; height: 22px; border-radius: 50%; }
+.sf-root .sf-fm-ctile.sf-tile-letter { font-size: 10px; }
+.sf-root .sf-fm-ext { flex: none; width: 12px; height: 12px; margin-left: -2px; color: var(--sf-text-faint); }
+.sf-root .sf-fm-empty { padding: 0 9px 10px; font-size: var(--sf-fs-caption); color: var(--sf-text-faint); }
 
 /* ---------------------------------------------------------------------------
  * Drag feedback

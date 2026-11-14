@@ -160,9 +160,21 @@
     <path d="M6.5 6.5l.8 12.1a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-12.1"/>
   </symbol>
 
-  <!-- Not a folder icon: used by the filter box and the editor's searches. -->
+  <!-- Not a folder icon: used by the filter box, the editor's searches and
+       the folder menu's Check for updates. -->
   <symbol id="sf-g-search" viewBox="0 0 24 24">
     <circle cx="10.6" cy="10.6" r="6.6"/>
     <path d="M15.4 15.4l4.8 4.8"/>
+  </symbol>
+
+  <!-- Folder popover icons. -->
+  <symbol id="sf-g-order" viewBox="0 0 24 24">
+    <path d="M8 4.5v15M4.5 8L8 4.5 11.5 8"/><path d="M16 19.5v-15M12.5 16l3.5 3.5 3.5-3.5"/>
+  </symbol>
+  <symbol id="sf-g-up" viewBox="0 0 24 24">
+    <path d="M12 19V5.5"/><path d="M6.5 11L12 5.5 17.5 11"/>
+  </symbol>
+  <symbol id="sf-g-down" viewBox="0 0 24 24">
+    <path d="M12 5v13.5"/><path d="M6.5 13L12 18.5 17.5 13"/>
   </symbol>
 </svg>

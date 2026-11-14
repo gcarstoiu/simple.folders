@@ -20,9 +20,9 @@ Supports **Unraid 7.2 – 7.4**.
   of those icons opens that container's own menu. Unfold to get the full rows,
   numbered in start order.
 - **Folder-wide commands** from the folder's icon or its ⋮ menu: start, stop,
-  restart, pause/resume, check for updates, update, force update, open every
-  WebUI. They run sequentially, honouring the folder's delay between starts
-  and reverse-order stop. Only one job runs at a time.
+  restart, pause/resume, check for updates, update, force update, and each
+  member's WebUI. They run sequentially, honouring the folder's delay between
+  starts and reverse-order stop. Only one job runs at a time.
 - **Folders that fill themselves.** Give a folder a name pattern, or label a
   container `simple.folders=<folder>`, and matching containers join
   automatically — including containers created later.
