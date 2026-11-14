@@ -174,7 +174,7 @@ Top to bottom:
 - Banner, only when one is ready: "Update ready" with Update, or "Rebuild ready" with
   Rebuild.
 - Strip of four buttons in fixed slots: Start/Stop · Restart · Pause/Resume · WebUI.
-  What cannot run is greyed, not removed. A paused container offers only Resume.
+  What cannot run is greyed, not removed. A paused container offers Stop and Resume.
 - List: Console (running only) · Logs · Edit container…
 - Folder chips: None · one per folder (current one pressed) · New folder (opens the
   editor with this container preselected). A chip moves the container; None takes it
