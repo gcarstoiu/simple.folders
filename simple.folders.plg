@@ -7,8 +7,8 @@
 <!ENTITY plugdir   "/usr/local/emhttp/plugins/&name;">
 <!ENTITY cfgdir    "/boot/config/plugins/&name;">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/&github;/main/&name;.plg">
-<!ENTITY version   "2026.10.28g">
-<!ENTITY md5       "e2e4bf6590ecbf7942e654baf7596b2d">
+<!ENTITY version   "2026.11.14">
+<!ENTITY md5       "2b5be27b430c3d294599676d1a087348">
 ]>
 
 <PLUGIN name="&name;"
@@ -21,6 +21,16 @@
         support="https://github.com/&github;/issues">
 
 <CHANGES>
+###2026.11.14
+- New container menu: Start/Stop, Restart, Pause/Resume and WebUI as buttons
+  that stay in place; what can't run is greyed out.
+- A ready update or rebuild shows as a banner with its own button.
+- One click on a folder chip moves a container; None takes it out of its
+  folder.
+- Force update on a single container now asks first.
+- A paused container can be stopped from its menu.
+- Fix: menu dividers were invisible in the dark themes.
+
 ###2026.10.28g
 - Credit the two icon libraries the search draws on: Dashboard Icons
   (Apache-2.0) and selfh.st/icons (CC BY 4.0). CC BY requires attribution,
