@@ -47,6 +47,10 @@
   </Overview>
 
   <Changes>
+### 2026.11.14a
+- New folder menu: fixed action buttons with counts, an update banner and WebUI chips.
+- Fix: Open WebUIs opened only the first WebUI.
+
 ### 2026.11.14
 - New container menu: fixed action buttons, an update banner and folder chips.
 - Force update on one container asks first; a paused container can be stopped.
