@@ -235,9 +235,8 @@ way.
 
 ### Where things stand
 
-Submitted to Community Applications and awaiting manual moderator review.
-Until it is listed, installation is the `.plg` URL above, which is also how
-updates reach existing installs.
+Listed in Community Applications. Both ways of installing use the `.plg` URL
+above, which is also how updates reach existing installs.
 
 Open: `<Support>` points at GitHub issues; the Unraid convention for plugins
 is a forum support thread, and if one is created it should be pointed at in
