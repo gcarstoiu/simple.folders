@@ -106,6 +106,19 @@ $dfTheme = $display['theme'] ?? 'black';
      data-base="<?=htmlspecialchars($dfBase)?>"
      hidden></div>
 
+<!-- Unraid's "Tabbed" page view puts a page with no Title outside every tab
+     panel, so this table would also show under other plugins' tabs (Compose
+     Manager's, for one). Move it into the panel that holds the native table,
+     before it is first shown. -->
+<script>
+(function () {
+  var root = document.getElementById('sf-root');
+  var table = document.getElementById('docker_containers');
+  var panel = table && table.closest('[role="tabpanel"]');
+  if (panel && !panel.contains(root)) panel.appendChild(root);
+})();
+</script>
+
 <script>
 /* Configuration handed from PHP to the app, before any module loads. */
 window.SimpleFolders = window.SimpleFolders || {};
