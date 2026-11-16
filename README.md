@@ -77,8 +77,9 @@ reinstall picks them up; delete that directory to erase them.
 
 ## How it fits into Unraid
 
-The plugin adds a page file with `Menu="Docker"`, which emhttp renders inside
-the Docker tab after the stock container table. **No core file is patched.**
+The plugin adds a page file with `Menu="Docker:1"`, which emhttp renders inside
+the Docker tab directly after the stock container table, above other plugins'
+sections such as Compose Manager's. **No core file is patched.**
 
 It reads containers through Unraid's own `DockerClient` / `DockerTemplates`
 classes and acts through Unraid's own endpoints:
@@ -140,7 +141,7 @@ Docker (matching the PHP that Unraid 7.2–7.4 ship).
 
 Useful URLs: `?theme=white｜black｜azure｜gray`, `?folded=all`,
 `?nostream=1` (stop the live stream so a headless browser can settle),
-`/_reset` (wipe state).
+`?compose=1` (add a Compose Manager section), `/_reset` (wipe state).
 
 ### Tests
 
@@ -194,6 +195,11 @@ from the code alone, and all of them are easy to undo by accident.
 between 7.2.1 and 7.4 and is the usual reason folder plugins break on
 upgrade. Read containers through `DockerClient`/`DockerTemplates` instead;
 those are stable across the range.
+
+**Keep the page at `Menu="Docker:1"`.** emhttp orders the Docker tab's pages
+by rank, then file name. With no rank the page sorts after every ranked one,
+so Compose Manager's section (`Docker:2`) came between Unraid's "Docker
+Containers" heading and the folders table.
 
 **Require `DockerClient.php` at file scope, never inside a function.** It
 declares `$dockerManPaths`, `$driver`, `$docroot` and `$dockercfg` at its top
