@@ -47,6 +47,10 @@
   </Overview>
 
   <Changes>
+### 2026.11.16
+- Fix: the containers show above Compose Manager's stacks again.
+- Fix: in the tabbed page view, the containers no longer show under the Compose tab.
+
 ### 2026.11.14a
 - New folder menu: fixed action buttons with counts, an update banner and WebUI chips.
 - Fix: Open WebUIs opened only the first WebUI.

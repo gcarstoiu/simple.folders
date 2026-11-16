@@ -7,8 +7,8 @@
 <!ENTITY plugdir   "/usr/local/emhttp/plugins/&name;">
 <!ENTITY cfgdir    "/boot/config/plugins/&name;">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/&github;/main/&name;.plg">
-<!ENTITY version   "2026.11.14a">
-<!ENTITY md5       "f8dfe1681543e8015b79ea3c7db54c93">
+<!ENTITY version   "2026.11.16">
+<!ENTITY md5       "0f6fd95fefc3bf3973c53e5688697c60">
 ]>
 
 <PLUGIN name="&name;"
@@ -21,6 +21,12 @@
         support="https://github.com/&github;/issues">
 
 <CHANGES>
+###2026.11.16
+- Fix: Compose Manager's stacks showed above the containers; the containers
+  are back under the Docker Containers heading, as on Unraid's own page.
+- Fix: in the tabbed page view, the containers also showed under the
+  Compose tab.
+
 ###2026.11.14a
 - New folder menu: Start all, Stop all, Restart all and Pause/Resume all as
   buttons that stay in place, each showing how many containers it acts on.
