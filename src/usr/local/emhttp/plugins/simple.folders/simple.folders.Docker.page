@@ -1,4 +1,4 @@
-Menu="Docker"
+Menu="Docker:1"
 Cond="is_file('/var/run/dockerd.pid')"
 Markdown="false"
 Tabs="false"
@@ -14,11 +14,16 @@ Tabs="false"
  * ---------------------------------------------------------------------------
  * HOW THIS GETS ON THE PAGE
  *
- * emhttp scans every *.page file under /usr/local/emhttp/plugins. A page whose
- * Menu is "Docker" is rendered inside the Docker tab, immediately after core's
- * DockerContainers.page (Menu="Docker:1"). So this file runs in the same
- * document as the native table, with jQuery, NchanSubscriber, csrf_token,
- * docker[] and loadlist() already defined.
+ * emhttp scans every *.page file under /usr/local/emhttp/plugins and renders
+ * those whose Menu is "Docker" inside the Docker tab, ordered by rank then
+ * file name with a natural sort. Rank 1 puts this page immediately after
+ * core's DockerContainers.page (also Docker:1; "D" sorts before "s") and
+ * above other plugins' sections, such as Compose Manager's (Docker:2). With
+ * no rank it would sort after every ranked page, below those sections and
+ * away from the "Docker Containers" heading it relies on.
+ *
+ * So this file runs in the same document as the native table, with jQuery,
+ * NchanSubscriber, csrf_token, docker[] and loadlist() already defined.
  *
  * There is deliberately NO Title= above. emhttp renders a grey section
  * header for every page that has one, so a Title would put a second

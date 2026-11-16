@@ -1267,6 +1267,22 @@ const TESTS = [
     const mixed = await page.$eval('.sf-row-folder[data-folder="f-media"] .sf-switch',
       (n) => n.getAttribute('aria-pressed'));
     ok(mixed === 'mixed', `folder switch aria-pressed was "${mixed}"`);
+  }),
+
+  t('the folders table sits under Docker Containers, above Compose', async () => {
+    await fresh('&compose=1');
+    const order = await page.evaluate(() => {
+      const titles = [...document.querySelectorAll('.title')];
+      const root = document.getElementById('sf-root');
+      const before = (a, b) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+      return {
+        titles: titles.map((n) => n.textContent.trim()),
+        placed: titles.length === 2 && before(titles[0], root) && before(root, titles[1])
+      };
+    });
+    ok(order.titles.join(' | ') === 'Docker Containers | Compose', `headings were: ${order.titles.join(' | ')}`);
+    ok(order.placed, 'the folders table should sit between the two headings');
+    await shot('23-compose-below');
   })
 ];
 

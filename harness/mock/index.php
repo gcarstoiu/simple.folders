@@ -10,7 +10,9 @@
  *   - var docker = [], loadlist(), and the #docker_containers table
  *   - the .js-actions button row, body theme class, and _() translation stub
  *
- * The plugin's own page is included at the bottom, where Menu="Docker" puts it.
+ * The Docker tab's pages are rendered in emhttp's order, so the plugin page's
+ * own Menu= decides where it lands. ?compose=1 adds a stand-in for Compose
+ * Manager's section (Docker:2).
  *
  * NOT part of the plugin package. Never shipped.
  */
@@ -48,6 +50,8 @@ $plugin = __DIR__.'/../../src/usr/local/emhttp/plugins/simple.folders';
   table#docker_containers { width:100%; border-collapse:collapse; }
   #docker_containers th, #docker_containers td { padding:6px; border-bottom:1px solid #333; text-align:left; font-size:13px; }
   .js-actions { padding:16px; display:flex; gap:8px; flex-wrap:wrap; }
+  #compose_stacks { width:100%; border-collapse:collapse; }
+  #compose_stacks th, #compose_stacks td { padding:6px; border-bottom:1px solid #333; text-align:left; font-size:13px; }
   .advanced { display:none; }
 </style>
 </head>
@@ -62,30 +66,6 @@ $plugin = __DIR__.'/../../src/usr/local/emhttp/plugins/simple.folders';
   <span style="margin-left:auto">
     <a href="/_reset">reset container state</a>
   </span>
-</div>
-
-<div class="title">Docker Containers</div>
-
-<div class="TableContainer">
-  <table id="docker_containers" class="tablesorter shift">
-    <thead>
-      <tr>
-        <th>Application</th><th>Version</th><th>Network</th><th>Container IP</th>
-        <th>Container Port</th><th>LAN IP:Port</th><th>Volume Mappings</th>
-        <th class="load advanced">CPU &amp; Memory load</th>
-        <th class="nine">Autostart</th><th class="five">Uptime</th>
-      </tr>
-    </thead>
-    <tbody id="docker_list"><tr><td colspan="10"></td></tr></tbody>
-  </table>
-</div>
-
-<div class="js-actions">
-  <input type="button" onclick="addContainer()" value="Add Container" style="display:none">
-  <input type="button" onclick="startAll()" value="Start All" style="display:none">
-  <input type="button" onclick="stopAll()" value="Stop All" style="display:none">
-  <input type="button" onclick="checkAll()" value="Check for Updates" id="checkAll" style="display:none">
-  <input type="button" onclick="updateAll()" value="Update All" id="updateAll" style="display:none">
 </div>
 
 <script>
@@ -147,18 +127,81 @@ function updateAll() { alert('[harness] update all'); }
 $(function () { loadlist(true); });
 </script>
 
+<?php ob_start(); ?>
+<div class="TableContainer">
+  <table id="docker_containers" class="tablesorter shift">
+    <thead>
+      <tr>
+        <th>Application</th><th>Version</th><th>Network</th><th>Container IP</th>
+        <th>Container Port</th><th>LAN IP:Port</th><th>Volume Mappings</th>
+        <th class="load advanced">CPU &amp; Memory load</th>
+        <th class="nine">Autostart</th><th class="five">Uptime</th>
+      </tr>
+    </thead>
+    <tbody id="docker_list"><tr><td colspan="10"></td></tr></tbody>
+  </table>
+</div>
+
+<div class="js-actions">
+  <input type="button" onclick="addContainer()" value="Add Container" style="display:none">
+  <input type="button" onclick="startAll()" value="Start All" style="display:none">
+  <input type="button" onclick="stopAll()" value="Stop All" style="display:none">
+  <input type="button" onclick="checkAll()" value="Check for Updates" id="checkAll" style="display:none">
+  <input type="button" onclick="updateAll()" value="Update All" id="updateAll" style="display:none">
+</div>
+<?php $stockHtml = ob_get_clean(); ?>
+
+<?php ob_start(); ?>
+<div class="TableContainer">
+  <table id="compose_stacks" class="tablesorter shift">
+    <thead><tr><th>Stack</th><th>Status</th><th>Containers</th><th>Autostart</th></tr></thead>
+    <tbody>
+      <tr><td>monitoring</td><td>running</td><td>3</td><td>on</td></tr>
+      <tr><td>documents</td><td>running</td><td>4</td><td>on</td></tr>
+      <tr><td>wiki</td><td>stopped</td><td>2</td><td>off</td></tr>
+    </tbody>
+  </table>
+</div>
+<?php $composeHtml = ob_get_clean(); ?>
+
 <?php
-/* Render the plugin page the way emhttp does: strip the "Menu=/Icon=" header
-   above the --- separator, then evaluate the rest as PHP+HTML. */
+/* Render the plugin page the way emhttp does: read the header above the ---
+   separator, then evaluate the rest as PHP+HTML. */
 $page = $plugin.'/simple.folders.Docker.page';
+$pluginMenu = '';
 if (file_exists($page)) {
   $raw  = file_get_contents($page);
-  $body = strpos($raw, "\n---\n") !== false ? substr($raw, strpos($raw, "\n---\n") + 5) : $raw;
+  $cut  = strpos($raw, "\n---\n");
+  $body = $cut !== false ? substr($raw, $cut + 5) : $raw;
+  $pluginMenu = $cut !== false ? (@parse_ini_string(substr($raw, 0, $cut))['Menu'] ?? '') : '';
   /* Unraid's page parser also expands _(...)_ translation markers. */
   $body = preg_replace('/_\((.*?)\)_/', '$1', $body);
+  ob_start();
   eval('?>'.$body);
+  $pluginHtml = ob_get_clean();
 } else {
-  echo '<p style="padding:16px;color:#FF9B9B">plugin page not found: '.htmlspecialchars($page).'</p>';
+  $pluginHtml = '<p style="padding:16px;color:#FF9B9B">plugin page not found: '.htmlspecialchars($page).'</p>';
+}
+
+/* The Docker tab's pages, ordered as emhttp's find_pages() orders them: keyed
+   "<rank><name>" and natural-sorted, so a page with no rank sorts last. Each
+   titled page gets a heading, as in the non-tabbed layout. */
+$pages = [
+  ['name' => 'DockerContainers', 'Menu' => 'Docker:1', 'Title' => 'Docker Containers', 'html' => $stockHtml],
+  ['name' => 'simple.folders.Docker', 'Menu' => $pluginMenu, 'html' => $pluginHtml],
+];
+if (isset($_GET['compose'])) {
+  $pages[] = ['name' => 'compose.manager', 'Menu' => 'Docker:2', 'Title' => 'Compose', 'html' => $composeHtml];
+}
+$tab = [];
+foreach ($pages as $p) {
+  [$menu, $rank] = array_pad(explode(':', $p['Menu'], 2), 2, '');
+  if ($menu === 'Docker') $tab[$rank.$p['name']] = $p;
+}
+ksort($tab, SORT_NATURAL);
+foreach ($tab as $p) {
+  if (isset($p['Title'])) echo '<div class="title">'.htmlspecialchars($p['Title'])."</div>\n";
+  echo $p['html'], "\n";
 }
 ?>
 </body>
