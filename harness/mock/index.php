@@ -12,7 +12,8 @@
  *
  * The Docker tab's pages are rendered in emhttp's order, so the plugin page's
  * own Menu= decides where it lands. ?compose=1 adds a stand-in for Compose
- * Manager's section (Docker:2).
+ * Manager's section (Docker:2); ?tabbed=1 renders the tab the way Unraid's
+ * "Tabbed" page view does.
  *
  * NOT part of the plugin package. Never shipped.
  */
@@ -50,9 +51,13 @@ $plugin = __DIR__.'/../../src/usr/local/emhttp/plugins/simple.folders';
   table#docker_containers { width:100%; border-collapse:collapse; }
   #docker_containers th, #docker_containers td { padding:6px; border-bottom:1px solid #333; text-align:left; font-size:13px; }
   .js-actions { padding:16px; display:flex; gap:8px; flex-wrap:wrap; }
-  #compose_stacks { width:100%; border-collapse:collapse; }
+  #compose_stacks { width:100%; border-collapse:collapse; background:transparent; color:inherit; }
   #compose_stacks th, #compose_stacks td { padding:6px; border-bottom:1px solid #333; text-align:left; font-size:13px; }
   .advanced { display:none; }
+  .tabs-container { display:flex; gap:4px; padding:12px 16px 0; }
+  /* An underline, not a fill: Unraid's button:hover sets the fill !important. */
+  .tabs-container [role="tab"] { padding:8px 14px; color:inherit; border:0; border-bottom:2px solid transparent; cursor:pointer; }
+  .tabs-container [role="tab"][aria-selected="true"] { border-bottom-color:#6EA8FE; }
 </style>
 </head>
 <body class="<?=htmlspecialchars($theme)?>">
@@ -199,9 +204,45 @@ foreach ($pages as $p) {
   if ($menu === 'Docker') $tab[$rank.$p['name']] = $p;
 }
 ksort($tab, SORT_NATURAL);
-foreach ($tab as $p) {
-  if (isset($p['Title'])) echo '<div class="title">'.htmlspecialchars($p['Title'])."</div>\n";
-  echo $p['html'], "\n";
+
+if (!isset($_GET['tabbed'])) {
+  foreach ($tab as $p) {
+    if (isset($p['Title'])) echo '<div class="title">'.htmlspecialchars($p['Title'])."</div>\n";
+    echo $p['html'], "\n";
+  }
+} else {
+  /* MainContentTabbed.php: a tab and a panel per titled page; a page with no
+     Title is output between the panels, inside none of them. */
+  $i = 0;
+  echo '<div id="displaybox"><nav class="tabs" role="tablist"><div class="tabs-container">';
+  foreach ($tab as $p) {
+    if (!isset($p['Title'])) continue;
+    $i++;
+    echo '<button role="tab" id="tab'.$i.'">'.htmlspecialchars($p['Title']).'</button>';
+  }
+  echo "</div></nav>\n";
+  $i = 0;
+  foreach ($tab as $p) {
+    if (!isset($p['Title'])) { echo $p['html'], "\n"; continue; }
+    $i++;
+    echo '<section id="tab'.$i.'-panel" role="tabpanel" class="tab-content content">', $p['html'], "</section>\n";
+  }
+  echo "</div>\n";
+?>
+<script>
+/* Unraid's tab switcher, reduced: one panel shown, the rest display:none. */
+(function () {
+  var tabs = document.querySelectorAll('.tabs [role="tab"]');
+  var panels = document.querySelectorAll('[role="tabpanel"]');
+  function show(i) {
+    tabs.forEach(function (t, j) { t.setAttribute('aria-selected', j === i ? 'true' : 'false'); });
+    panels.forEach(function (p, j) { p.style.display = j === i ? 'block' : 'none'; });
+  }
+  tabs.forEach(function (t, i) { t.addEventListener('click', function () { show(i); }); });
+  show(0);
+})();
+</script>
+<?php
 }
 ?>
 </body>

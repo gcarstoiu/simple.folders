@@ -141,7 +141,8 @@ Docker (matching the PHP that Unraid 7.2–7.4 ship).
 
 Useful URLs: `?theme=white｜black｜azure｜gray`, `?folded=all`,
 `?nostream=1` (stop the live stream so a headless browser can settle),
-`?compose=1` (add a Compose Manager section), `/_reset` (wipe state).
+`?compose=1` (add a Compose Manager section), `?tabbed=1` (Unraid's tabbed
+page view), `/_reset` (wipe state).
 
 ### Tests
 

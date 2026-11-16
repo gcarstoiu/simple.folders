@@ -1283,6 +1283,22 @@ const TESTS = [
     ok(order.titles.join(' | ') === 'Docker Containers | Compose', `headings were: ${order.titles.join(' | ')}`);
     ok(order.placed, 'the folders table should sit between the two headings');
     await shot('23-compose-below');
+  }),
+
+  t('in tabbed view the folders table shows only under Docker Containers', async () => {
+    await fresh('&compose=1&tabbed=1');
+    const inPanel = await page.evaluate(() => {
+      const panel = document.getElementById('docker_containers').closest('[role="tabpanel"]');
+      return !!panel && panel.contains(document.getElementById('sf-root'));
+    });
+    ok(inPanel, 'the folders table should be inside the Docker Containers panel');
+    const shown = () => page.$eval('#sf-root', (n) => n.getClientRects().length > 0);
+    ok(await shown(), 'the folders table should show under Docker Containers');
+    await page.click('#tab2');
+    ok(!(await shown()), 'the folders table should not show under Compose');
+    await shot('24-tabbed-compose');
+    await page.click('#tab1');
+    ok(await shown(), 'the folders table should show again under Docker Containers');
   })
 ];
 
