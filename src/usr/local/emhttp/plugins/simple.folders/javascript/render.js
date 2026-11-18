@@ -19,11 +19,51 @@
   var U = SF.util;
   var R = SF.render = {};
 
-  /* "Container Port" and "LAN IP:Port" replace the single vague "Port" this
- * started with - they are what Unraid's own table shows, and keeping all
- * three would have put the same number on screen twice. */
-  var COLUMNS = ['', 'Container', 'Status', 'Version', 'Container Port',
-                 'LAN IP:Port', 'CPU', 'Memory', 'Autostart', ''];
+  /* The columns that can be hidden and moved, keyed as in lib/Columns.php.
+   * The grip/chevron column and Container always come first, the row menu
+   * always last; the store holds which of these show and in what order.
+   *
+   * "Container Port" and "LAN IP:Port" replace the single vague "Port" this
+   * started with - they are what Unraid's own table shows, and keeping all
+   * three would have put the same number on screen twice. */
+  var COLUMNS = {
+    status:    { label: 'Status',         px: 150 },
+    version:   { label: 'Version',        px: 150 },
+    network:   { label: 'Network',        px: 150 },
+    cport:     { label: 'Container Port', px: 112 },
+    lan:       { label: 'LAN IP:Port',    px: 150 },
+    cpu:       { label: 'CPU',            px: 72 },
+    memory:    { label: 'Memory',         px: 92 },
+    autostart: { label: 'Autostart',      px: 104 }
+  };
+  var FIRST = 52, NAME = 260, LAST = 44, GAP = 10, PAD = 24;
+
+  R.columnLabel = function (key) { return COLUMNS[key] ? COLUMNS[key].label : key; };
+
+  /* The shown columns in order, and the grid that lays them out. Below its
+   * minimum width the card scrolls sideways (spec 3.1). */
+  function layout() {
+    var keys = SF.store.columns()
+      .filter(function (c) { return c.shown && COLUMNS[c.key]; })
+      .map(function (c) { return c.key; });
+    var widths = keys.map(function (k) { return COLUMNS[k].px; });
+    var count = keys.length + 3;
+    return {
+      keys: keys,
+      grid: [FIRST + 'px', 'minmax(' + NAME + 'px, 1fr)']
+        .concat(widths.map(function (w) { return w + 'px'; }), [LAST + 'px']).join(' '),
+      min: FIRST + NAME + LAST + widths.reduce(function (a, w) { return a + w; }, 0)
+        + GAP * (count - 1) + PAD
+    };
+  }
+
+  /* A row's cells, in the column order the store holds. */
+  function appendCells(row, cells, keys) {
+    row.appendChild(cells.tree);
+    row.appendChild(cells.name);
+    keys.forEach(function (k) { if (cells[k]) row.appendChild(cells[k]); });
+    row.appendChild(cells.menu);
+  }
 
   /* ---------------------------------------------------------------------
    * Entry point
@@ -53,22 +93,25 @@
       return;
     }
 
+    var cols = layout();
     var card = U.el('div.sf-card');
-    card.appendChild(columnHeads());
+    card.style.setProperty('--sf-grid', cols.grid);
+    card.style.setProperty('--sf-table-min', cols.min + 'px');
+    card.appendChild(columnHeads(cols.keys));
 
     var body = U.el('div.sf-body');
     folders.forEach(function (entry) {
-      body.appendChild(folderRow(entry.folder));
+      body.appendChild(folderRow(entry.folder, cols.keys));
       if (S.isExpanded(entry.folder.id)) {
         entry.members.forEach(function (ct, i) {
-          body.appendChild(containerRow(ct, { folder: entry.folder, index: i + 1 }));
+          body.appendChild(containerRow(ct, { folder: entry.folder, index: i + 1 }, cols.keys));
         });
       }
     });
 
     if (loose.length) {
       body.appendChild(sectionLabel('Not in a folder', loose.length));
-      loose.forEach(function (ct) { body.appendChild(containerRow(ct, {})); });
+      loose.forEach(function (ct) { body.appendChild(containerRow(ct, {}, cols.keys)); });
     }
 
     card.appendChild(body);
@@ -115,12 +158,20 @@
   function header() {
     var S = SF.store, state = S.state, stats = state.stats;
 
+    /* "16 containers · 13 running · 1 unhealthy · 3 folders · 4 updates
+     * ready" - whatever needs attention in amber. */
+    var trouble = [
+      stats.unhealthy ? stats.unhealthy + ' unhealthy' : null,
+      stats.restarting ? stats.restarting + ' restarting' : null
+    ].filter(Boolean);
     var summary = [
-      U.plural(stats.containers, 'container'),
-      stats.running + ' running',
-      U.plural(stats.folders, 'folder'),
-      stats.updates ? U.plural(stats.updates, 'update') + ' ready' : null
-    ].filter(Boolean).join(' · ');
+      U.plural(stats.containers, 'container') + ' · ' + stats.running + ' running',
+      trouble.length ? U.el('span.sf-summary-warn', { text: ' · ' + trouble.join(' · ') }) : null,
+      ' · ' + [
+        U.plural(stats.folders, 'folder'),
+        stats.updates ? U.plural(stats.updates, 'update') + ' ready' : null
+      ].filter(Boolean).join(' · ')
+    ];
 
     var filter = U.el('input.sf-filter-input', {
       type: 'search',
@@ -134,6 +185,14 @@
 
     var actions = U.el('div.sf-head-actions', null, [
       U.el('div.sf-filter', null, [U.glyph('search', 'sf-filter-icon'), filter]),
+
+      U.el('button.sf-btn.sf-btn-cols', {
+        type: 'button',
+        disabled: state.classic,
+        'aria-haspopup': 'dialog',
+        'aria-expanded': String(!!(SF.menus && SF.menus.isOpen('columns'))),
+        onClick: function (e) { SF.menus.columns(e.currentTarget); }
+      }, [U.glyph('columns'), U.el('span', { text: 'Columns' })]),
 
       U.el('button.sf-btn', {
         type: 'button',
@@ -156,7 +215,7 @@
      * from Unraid's heading. */
     return U.el('header.sf-head', null, [
       U.el('div.sf-head-text', null, [
-        U.el('div.sf-summary', { text: summary })
+        U.el('div.sf-summary', null, summary)
       ]),
       actions
     ]);
@@ -175,15 +234,15 @@
     ]);
   }
 
-  function columnHeads() {
+  function columnHeads(keys) {
     var row = U.el('div.sf-row.sf-row-head', { role: 'row' });
-    COLUMNS.forEach(function (label, i) {
+    var labels = [''].concat(['Container'], keys.map(R.columnLabel), ['']);
+    labels.forEach(function (label) {
       row.appendChild(U.el('div.sf-cell', {
         role: 'columnheader',
         'aria-hidden': label ? null : 'true',
         text: label
       }));
-      void i;
     });
     return row;
   }
@@ -277,7 +336,7 @@
   /* ---------------------------------------------------------------------
    * Folder row (spec 4)
    * ------------------------------------------------------------------- */
-  function folderRow(folder) {
+  function folderRow(folder, keys) {
     var S = SF.store;
     var sum = S.summary(folder);
     var open = S.isExpanded(folder.id);
@@ -288,6 +347,7 @@
       'data-color': folder.color
     });
     if (SF.dnd) SF.dnd.attach(row, 'folder', folder.id);
+    var cells = {};
 
     /* 1 - chevron */
     var chevron = U.el('button.sf-chevron', {
@@ -299,10 +359,10 @@
     }, [U.el('span.sf-chevron-mark', { 'aria-hidden': 'true' })]);
     /* Grip first, then the chevron in a fixed slot, so the grip lines up
      * across every row and both keep a full hit area of their own. */
-    row.appendChild(U.el('div.sf-cell.sf-cell-tree', null, [
+    cells.tree = U.el('div.sf-cell.sf-cell-tree', null, [
       grip('folder', folder.id, 'Drag to reorder folder ' + folder.name),
       U.el('div.sf-tree-slot', null, [chevron])
-    ]));
+    ]);
 
     /* 2 - icon, name, count, and either the icon strip or the sub-line */
     var icon = U.el('button.sf-folder-icon', {
@@ -334,52 +394,59 @@
       ? iconStrip(folder, sum.members)
       : U.el('div.sf-folder-sub', { text: subLine(folder, sum) });
 
-    row.appendChild(U.el('div.sf-cell.sf-cell-name', null, [
+    cells.name = U.el('div.sf-cell.sf-cell-name', null, [
       icon,
       U.el('div.sf-folder-text', null, [line1, line2])
-    ]));
+    ]);
 
-    /* 3 - status */
-    row.appendChild(U.el('div.sf-cell', null, [
-      U.el('div.sf-folder-status' + (sum.busy ? '.is-busy' : (sum.allRunning ? '.is-all' : '')), {
+    /* status: the count, a bar, and in amber whatever needs attention - a
+     * folded folder would otherwise hide an unhealthy member entirely. */
+    var trouble = [
+      sum.unhealthy ? sum.unhealthy + ' unhealthy' : null,
+      sum.restarting ? sum.restarting + ' restarting' : null
+    ].filter(Boolean);
+    cells.status = U.el('div.sf-cell', null, [
+      U.el('div.sf-folder-status' + (sum.busy ? '.is-busy' : (sum.allRunning && !trouble.length ? '.is-all' : '')), {
         text: sum.busy
           ? 'Working… ' + sum.running + ' of ' + sum.total + ' up'
           : sum.running + ' of ' + sum.total + ' running'
       }),
-      segmentBar(sum.members)
-    ]));
+      segmentBar(sum.members),
+      trouble.length && !sum.busy ? U.el('div.sf-folder-alert', { text: trouble.join(' · ') }) : null
+    ]);
 
-    /* 4 - version */
-    row.appendChild(U.el('div.sf-cell', null, [
+    cells.version = U.el('div.sf-cell', null, [
       sum.updates
         ? U.el('span.sf-badge.sf-badge-warn', { text: U.plural(sum.updates, 'update') })
         : U.el('span.sf-muted', { text: 'Up to date' })
-    ]));
+    ]);
 
-    /* 5-8 - the two port columns (a folder aggregates no address of its
-     * own), then cpu and memory, which R.updateLive() patches in place. */
-    row.appendChild(U.el('div.sf-cell.sf-mono.sf-muted', { text: '—' }));
-    row.appendChild(U.el('div.sf-cell.sf-mono.sf-muted', { text: '—' }));
-    row.appendChild(U.el('div.sf-cell.sf-mono.sf-cell-cpu', { text: U.cpu(sum.cpu) }));
-    row.appendChild(U.el('div.sf-cell.sf-mono.sf-cell-mem', { text: U.memory(sum.mem) }));
+    /* A folder has no network or address of its own. CPU and memory are
+     * sums, which R.updateLive() patches in place. */
+    cells.network = U.el('div.sf-cell.sf-mono.sf-muted', { text: '—' });
+    cells.cport   = U.el('div.sf-cell.sf-mono.sf-muted', { text: '—' });
+    cells.lan     = U.el('div.sf-cell.sf-mono.sf-muted', { text: '—' });
+    cells.cpu     = U.el('div.sf-cell.sf-mono.sf-cell-cpu', { text: U.cpu(sum.cpu) });
+    cells.memory  = U.el('div.sf-cell.sf-mono.sf-cell-mem', { text: U.memory(sum.mem) });
 
-    /* 8 - tri-state autostart */
-    row.appendChild(U.el('div.sf-cell', null, [
+    /* tri-state autostart */
+    cells.autostart = U.el('div.sf-cell', null, [
       switchControl({
         state: sum.autostart,
         label: { on: 'All on', off: 'All off', mixed: 'Mixed' }[sum.autostart],
         ariaLabel: 'Autostart for every container in ' + folder.name,
         onToggle: function () { SF.actions.setFolderAutostart(folder, sum.autostart !== 'on'); }
       })
-    ]));
+    ]);
 
-    /* 9 - overflow menu */
-    row.appendChild(U.el('div.sf-cell.sf-cell-menu', null, [
+    /* overflow menu */
+    cells.menu = U.el('div.sf-cell.sf-cell-menu', null, [
       kebab('Menu for folder ' + folder.name, function (e) {
         SF.menus.folder(e.currentTarget, folder, 'right');
       }, 'dialog')
-    ]));
+    ]);
 
+    appendCells(row, cells, keys);
     return row;
   }
 
@@ -428,7 +495,7 @@
   /* ---------------------------------------------------------------------
    * Container row (spec 5)
    * ------------------------------------------------------------------- */
-  function containerRow(ct, opts) {
+  function containerRow(ct, opts, keys) {
     var S = SF.store;
     var status = S.status(ct);
     var inFolder = !!opts.folder;
@@ -438,17 +505,18 @@
       'data-container': ct.name
     });
     if (SF.dnd) SF.dnd.attach(row, 'container', ct.name);
+    var cells = {};
 
-    /* 1 - the grip, then the tree line in the same slot the chevron uses on
-     * a folder row, so the indent reads straight down the column. */
-    row.appendChild(U.el('div.sf-cell.sf-cell-tree', null, [
+    /* the grip, then the tree line in the same slot the chevron uses on a
+     * folder row, so the indent reads straight down the column. */
+    cells.tree = U.el('div.sf-cell.sf-cell-tree', null, [
       grip('container', ct.name, 'Drag to move or reorder ' + ct.name),
       U.el('div.sf-tree-slot', null, [
         inFolder ? U.el('span.sf-tree', { 'aria-hidden': 'true' }) : null
       ])
-    ]));
+    ]);
 
-    /* 2 - start-order number, icon, name, image */
+    /* start-order number, icon, name with its Compose stack, image */
     var iconButton = U.el('button.sf-ct-icon', {
       type: 'button',
       'aria-label': 'Actions for ' + ct.name + ', ' + status.label,
@@ -456,53 +524,92 @@
       onClick: function (e) { SF.menus.container(e.currentTarget, ct, 'left'); }
     }, [containerTile(ct, 'sf-ct-tile')]);
 
-    row.appendChild(U.el('div.sf-cell.sf-cell-name', null, [
+    cells.name = U.el('div.sf-cell.sf-cell-name', null, [
       inFolder ? U.el('span.sf-order.sf-mono', { text: String(opts.index), 'aria-hidden': 'true' }) : null,
       iconButton,
       U.el('div.sf-ct-text', null, [
-        U.el('div.sf-ct-name', { text: ct.name }),
+        U.el('div.sf-ct-line1', null, [
+          U.el('div.sf-ct-name', { text: ct.name }),
+          ct.stack ? U.el('span.sf-stack', { title: 'Compose stack: ' + ct.stack }, [
+            U.glyph('stack'), U.el('span', { text: ct.stack })
+          ]) : null
+        ]),
         U.el('div.sf-ct-image', { text: ct.image })
       ])
-    ]));
+    ]);
 
-    /* 3 - status: the marker's SHAPE differs per state, so colour is never
-     * the only signal (spec 5, spec 14). */
-    row.appendChild(U.el('div.sf-cell', null, [
+    /* status: the marker's SHAPE differs per state, so colour is never the
+     * only signal (spec 5, spec 14). Under it, Docker's own account: uptime
+     * and health, or how it last exited. */
+    var detail = S.statusDetail(ct);
+    cells.status = U.el('div.sf-cell', null, [
       U.el('div.sf-ct-status', null, [
         U.el('span.sf-dot.sf-dot-' + status.kind, { 'aria-hidden': 'true' }),
         U.el('span.sf-status-text.sf-status-' + status.kind, { text: status.label })
-      ])
-    ]));
+      ]),
+      detail ? U.el('div.sf-sub' + (detail.warn ? '.sf-sub-warn' : ''), {
+        text: detail.text,
+        title: ct.statusText ? 'Docker: ' + ct.statusText : null
+      }) : null
+    ]);
 
-    /* 4 - version */
-    row.appendChild(U.el('div.sf-cell', null, [
+    /* version: the image's own version label, when it has one */
+    cells.version = U.el('div.sf-cell', null, [
+      ct.version ? U.el('div.sf-version', { text: ct.version, title: ct.version }) : null,
       ct.update === 1 ? U.el('span.sf-badge.sf-badge-warn', { text: 'Update ready' })
       : ct.update === 2 ? U.el('span.sf-badge.sf-badge-warn', { text: 'Rebuild ready' })
       : U.el('span.sf-muted', { text: 'Up to date' })
-    ]));
+    ]);
 
-    /* 5-8 */
-    row.appendChild(portCell(ct.ports && ct.ports.internal));
-    row.appendChild(portCell(ct.ports && ct.ports.external));
-    row.appendChild(U.el('div.sf-cell.sf-mono.sf-cell-cpu', { text: U.cpu(S.cpu(ct)) }));
-    row.appendChild(U.el('div.sf-cell.sf-mono.sf-cell-mem', { text: U.memory(S.mem(ct)) }));
+    cells.network = networkCell(ct);
+    cells.cport = portCell(ct.ports && ct.ports.internal);
+    cells.lan = portCell(ct.ports && ct.ports.external);
+    cells.cpu = U.el('div.sf-cell.sf-mono.sf-cell-cpu', { text: U.cpu(S.cpu(ct)) });
+    cells.memory = U.el('div.sf-cell.sf-mono.sf-cell-mem', { text: U.memory(S.mem(ct)) });
 
-    /* 8 */
-    row.appendChild(U.el('div.sf-cell', null, [
+    /* autostart, with the delay before the next container starts */
+    var wait = ct.autostart && ct.wait > 0 ? ct.wait : 0;
+    cells.autostart = U.el('div.sf-cell', null, [
       switchControl({
         state: ct.autostart ? 'on' : 'off',
         label: ct.autostart ? 'On' : 'Off',
+        extra: wait ? ' · ' + wait + ' s' : '',
+        title: wait ? 'Waits ' + wait + ' s before the next container starts' : null,
         ariaLabel: 'Autostart ' + ct.name,
         onToggle: function () { SF.actions.setContainerAutostart(ct, !ct.autostart); }
       })
-    ]));
+    ]);
 
-    /* 9 */
-    row.appendChild(U.el('div.sf-cell.sf-cell-menu', null, [
+    cells.menu = U.el('div.sf-cell.sf-cell-menu', null, [
       kebab('Menu for ' + ct.name, function (e) { SF.menus.container(e.currentTarget, ct, 'right'); }, 'dialog')
-    ]));
+    ]);
 
+    appendCells(row, cells, keys);
     return row;
+  }
+
+  /* The container's main network and its address on it. A container that
+   * uses another one's network has neither; it names that container. */
+  function networkCell(ct) {
+    if (ct.via) {
+      return U.el('div.sf-cell', null, [
+        U.el('div.sf-net-name', { text: 'via ' + ct.via, title: 'Uses the network of ' + ct.via }),
+        U.el('div.sf-net-ip.is-text', { text: 'shares its network' })
+      ]);
+    }
+    var nets = ct.networks || [];
+    if (!ct.network) return U.el('div.sf-cell.sf-mono.sf-muted', { text: '—' });
+
+    var up = ct.state === 'running' || ct.state === 'paused';
+    var ip = up && nets[0] ? nets[0].ip : '';
+    var more = nets.length > 1 ? ' +' + (nets.length - 1) : '';
+    return U.el('div.sf-cell', {
+      title: nets.map(function (n) { return n.name + (n.ip ? '  ' + n.ip : ''); }).join('\n') || null
+    }, [
+      U.el('div.sf-net-name', { text: ct.network + more }),
+      ip ? U.el('div.sf-net-ip', { text: ip })
+         : U.el('div.sf-net-ip.is-text', { text: up ? '—' : 'not running' })
+    ]);
   }
 
   /* ---------------------------------------------------------------------
@@ -572,9 +679,12 @@
       onClick: opts.onToggle
     }, [U.el('span.sf-switch-knob', { 'aria-hidden': 'true' })]);
 
-    return U.el('div.sf-switch-wrap', null, [
+    return U.el('div.sf-switch-wrap', { title: opts.title || null }, [
       track,
-      U.el('span.sf-switch-label', { text: opts.label })
+      U.el('span.sf-switch-label', null, [
+        opts.label,
+        opts.extra ? U.el('span.sf-wait', { text: opts.extra }) : null
+      ])
     ]);
   }
 

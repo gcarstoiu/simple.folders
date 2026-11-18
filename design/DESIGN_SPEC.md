@@ -67,21 +67,29 @@ Tip: a folder's icon opens its commands · each container icon opens that contai
 
 ### 3.1 Table columns
 
-Grid template (prototype): `40px minmax(280px, 1fr) 150px 124px 84px 72px 92px 104px 44px`,
-column gap 10px, row side padding 12px. The table has `min-width: 1100px` and scrolls
+Grid template with every column shown: `52px minmax(260px, 1fr) 150px 150px 150px 112px
+150px 72px 92px 104px 44px`, column gap 10px, row side padding 12px. The table's minimum
+width is the sum of the columns shown (1460px with all of them) and it scrolls
 horizontally inside its card on narrower screens.
 
 | # | Column | Folder row | Container row |
 |---|---|---|---|
-| 1 | (chevron / tree) | Fold/unfold button | Vertical tree line (in a folder) or empty |
-| 2 | Container | Folder icon, name, count, icon strip or sub-line | Start-order number, icon, name, image |
-| 3 | Status | "x of y running" + segmented bar | Status dot + text |
-| 4 | Version | "n updates" badge or "Up to date" | "Update ready" badge or "Up to date" |
-| 5 | Port | "—" | `:port` |
-| 6 | CPU | Sum of running members | Value or "—" when not running |
-| 7 | Memory | Sum of running members | Value or "—" when not running |
-| 8 | Autostart | Tri-state switch (All on / All off / Mixed) | Switch (On / Off) |
-| 9 | (menu) | ⋮ folder menu | ⋮ container menu |
+| 1 | (grip, chevron / tree) | Fold/unfold button | Vertical tree line (in a folder) or empty |
+| 2 | Container | Folder icon, name, count, icon strip or sub-line | Start-order number, icon, name, Compose stack chip, image |
+| 3 | Status | "x of y running" + segmented bar + "n unhealthy · n restarting" | Status dot + text + uptime, health or exit line |
+| 4 | Version | "n updates" badge or "Up to date" | Image version label, then "Update ready" badge or "Up to date" |
+| 5 | Network | "—" | Network name, then the container's address ("via <name>" for container: networking) |
+| 6 | Container Port | "—" | `<port>:<TCP/UDP>`, one per line |
+| 7 | LAN IP:Port | "—" | `<address>:<port>`, one per line |
+| 8 | CPU | Sum of running members | Value or "—" when not running |
+| 9 | Memory | Sum of running members | Value or "—" when not running |
+| 10 | Autostart | Tri-state switch (All on / All off / Mixed) | Switch (On / Off), plus " · n s" start delay |
+| 11 | (menu) | ⋮ folder menu | ⋮ container menu |
+
+Columns 3-10 can be hidden and reordered from the header's **Columns** list (top to
+bottom is left to right; each row moves by its grip or its up/down arrows; Reset
+restores this table). Columns 1, 2 and 11 never move or hide. The layout is saved on
+the server (`columns.json`), so every device shows the same table.
 
 ## 4. Folder row
 
@@ -120,8 +128,11 @@ horizontally inside its card on narrower screens.
 
 ### 4.4 Status summary
 
-- Text: "x of y running"; green when all running; while any member is busy:
-  "Working… x of y up" in busy blue.
+- Text: "x of y running"; green when all running and none unhealthy; while any member
+  is busy: "Working… x of y up" in busy blue. A restarting member does not count as
+  running.
+- Under the bar, in amber, only when it applies: "n unhealthy · n restarting", so a
+  folded folder cannot hide a member in trouble.
 - Segmented bar (100×4px): one segment per member, coloured by its status.
 - Version: "n update(s)" badge when any member has an update; else muted "Up to date".
 - CPU / Memory: sums over running members; "—" when none running.
@@ -131,9 +142,17 @@ horizontally inside its card on narrower screens.
 
 - Icon tile 32×32, name (500 weight), image name (12px muted) below.
 - Status: running = filled green dot; stopped = hollow grey ring; paused = two amber bars;
-  busy = spinning blue ring + the busy label ("Stopping…", "Pulling image…", …).
+  busy = spinning blue ring + the busy label ("Stopping…", "Pulling image…", …);
+  restarting = spinning amber ring; unhealthy = amber diamond.
   Shape differs per state, so colour is never the only signal.
-- Autostart switch; ⋮ container menu.
+- Under the status, from Docker's own Status: "up 3 days" (paused too), "up 3 days ·
+  healthy", "health check pending", or once stopped "2 days ago". An exit code other
+  than 0 or 143 (a normal stop) shows in amber: "exit 137 · 6 hours ago"; so does a
+  restart loop. A container never started reads "never started".
+- A Compose chip after the name when the container carries
+  `com.docker.compose.project`; the image's `org.opencontainers.image.version` above
+  the update state.
+- Autostart switch, with the start delay from Unraid's autostart file; ⋮ container menu.
 - "Not in a folder" section lists containers in no folder, under a mono uppercase label
   with the count.
 
@@ -183,6 +202,9 @@ Top to bottom:
 - Strip of four buttons in fixed slots: Start/Stop · Restart · Pause/Resume · WebUI.
   What cannot run is greyed, not removed. A paused container offers Stop and Resume.
 - List: Console (running only) · Logs · Edit container…
+- Details, folded by default ("Details · network, IP, MAC, volumes"): each network with
+  its address and MAC, the creation date, and the volume mappings (container path →
+  host path, "read-only" where it is).
 - Folder chips: None · one per folder (current one pressed) · New folder (opens the
   editor with this container preselected). A chip moves the container; None takes it
   out.
@@ -324,7 +346,9 @@ Prototype shape (see `folders.example.json`):
 Container fields the UI reads: name, image, icon (the prototype uses a letter + colour
 because it does not reproduce real app logos), status (running / stopped / paused, plus
 transient busy), update-available flag, port (first published or WebUI port), CPU %,
-memory, autostart flag, WebUI URL.
+memory, autostart flag, WebUI URL. From Docker's container list: State and Status
+(health, uptime, exit code), the version and Compose labels, networks, mounts and the
+creation time.
 
 ## 12. Visual system
 

@@ -62,7 +62,7 @@ const TESTS = [
     ok(await count('.sf-row-folder') === 3, 'expected 3 folder rows');
     ok(await count('.sf-row-ct') === 16, 'expected 16 container rows');
     const summary = await text('.sf-summary');
-    ok(summary === '16 containers · 13 running · 3 folders · 4 updates ready',
+    ok(summary === '16 containers · 13 running · 1 unhealthy · 1 restarting · 3 folders · 4 updates ready',
        `summary was: ${summary}`);
     await shot('01-overview');
   }),
@@ -241,6 +241,8 @@ const TESTS = [
     await page.keyboard.press('ArrowDown');
     ok(await focused() === 'Logs', `ArrowDown went to "${await focused()}"`);
     await page.keyboard.press('Tab');
+    ok(await focused() === 'Details', `Tab went to "${await focused()}"`);
+    await page.keyboard.press('Tab');
     ok(await focused() === 'Media', `the chips should open on the current folder, got "${await focused()}"`);
     await page.keyboard.press('Tab');
     ok(await focused() === 'Force update…', `Tab went to "${await focused()}"`);
@@ -256,7 +258,7 @@ const TESTS = [
     /* Tab past the last group leaves, as leaving a menu does. */
     await page.keyboard.press('Enter');
     await page.waitForSelector('.sf-ctm', { timeout: 3000 });
-    for (let i = 0; i < 4; i++) await page.keyboard.press('Tab');
+    for (let i = 0; i < 5; i++) await page.keyboard.press('Tab');
     await page.waitForFunction(() => !document.querySelector('.sf-ctm'), { timeout: 3000 });
     ok((await focused()).startsWith('Actions for plex'), `Tab out left focus on "${await focused()}"`);
   }),
@@ -1299,6 +1301,199 @@ const TESTS = [
     await shot('24-tabbed-compose');
     await page.click('#tab1');
     ok(await shown(), 'the folders table should show again under Docker Containers');
+  }),
+
+  t('the status shows uptime, health and how a container last exited', async () => {
+    await fresh();
+    const row = (n) => `.sf-row-ct[data-container="${n}"]`;
+    const sub = (n) => text(`${row(n)} .sf-sub`);
+    const warn = (n) => page.$eval(`${row(n)} .sf-sub`, (x) => x.classList.contains('sf-sub-warn'));
+
+    ok(await sub('plex') === 'up 3 days · healthy', `plex: ${await sub('plex')}`);
+    ok(await sub('qbittorrent') === 'up 3 days', `qbittorrent: ${await sub('qbittorrent')}`);
+    ok(await sub('radarr') === 'health check pending', `radarr: ${await sub('radarr')}`);
+    ok(await sub('zigbee2mqtt') === 'up 3 days', `a paused container: ${await sub('zigbee2mqtt')}`);
+    ok(!(await warn('plex')), 'a healthy container should not be flagged');
+
+    /* An error exit is flagged; restarting and unhealthy are states of their own. */
+    ok(await sub('prowlarr') === 'exit 137 · 6 hours ago', `prowlarr: ${await sub('prowlarr')}`);
+    ok(await warn('prowlarr'), 'exit 137 should be flagged');
+    ok(await text(`${row('immich')} .sf-status-text`) === 'Restarting', 'immich should read Restarting');
+    ok(await sub('immich') === 'exit 1 · 8 seconds ago', `immich: ${await sub('immich')}`);
+    ok(await text(`${row('open-webui')} .sf-status-text`) === 'Unhealthy', 'open-webui should read Unhealthy');
+    ok(await count(`${row('open-webui')} .sf-dot-unhealthy`) === 1, 'unhealthy needs its own marker');
+    ok(await text('.sf-row-folder[data-folder="f-ai"] .sf-folder-alert') === '1 unhealthy',
+       'the AI folder should say one member is unhealthy');
+    ok(await count('.sf-row-folder[data-folder="f-media"] .sf-folder-alert') === 0,
+       'a folder with nothing wrong should say nothing extra');
+    await shot('25-status-details');
+
+    /* A stop from the page is a normal exit: grey, no code. */
+    await openContainer('qbittorrent');
+    await page.evaluate(() => [...document.querySelectorAll('.sf-ctm-act')].find((b) => b.textContent.trim() === 'Stop').click());
+    await page.waitForFunction(() => {
+      const s = document.querySelector('.sf-row-ct[data-container="qbittorrent"] .sf-sub');
+      return s && s.textContent.trim() === '2 seconds ago';
+    }, { timeout: 8000 });
+    ok(!(await warn('qbittorrent')), 'a normal stop should not be flagged');
+  }),
+
+  t('Compose containers show their stack, and images their version', async () => {
+    await fresh();
+    const row = (n) => `.sf-row-ct[data-container="${n}"]`;
+    ok(await text(`${row('nextcloud')} .sf-stack`) === 'cloud', 'nextcloud should show its Compose stack');
+    ok(await page.$eval(`${row('nextcloud')} .sf-stack`, (n) => n.title) === 'Compose stack: cloud', 'the chip should name the stack');
+    ok(await count(`${row('plex')} .sf-stack`) === 0, 'a template container has no stack');
+
+    ok(await text(`${row('sonarr')} .sf-version`) === '4.0.10.2544-ls259', 'sonarr should show its version');
+    ok(await text(`${row('sonarr')} .sf-badge`) === 'Update ready', 'the update state stays under the version');
+    ok(await count(`${row('ollama')} .sf-version`) === 0, 'an image without a version label shows none');
+  }),
+
+  t('the Network column shows each container\'s network and address', async () => {
+    await fresh();
+    const heads = await page.$$eval('.sf-row-head .sf-cell', (n) => n.map((x) => x.textContent.trim()));
+    const at = heads.indexOf('Network');
+    ok(at === heads.indexOf('Version') + 1, `Network should follow Version: ${JSON.stringify(heads)}`);
+
+    const cell = (n) => page.$eval(`.sf-row-ct[data-container="${n}"]`, (r, i) => {
+      const c = r.children[i];
+      return [c.querySelector('.sf-net-name'), c.querySelector('.sf-net-ip')].map((x) => x ? x.textContent.trim() : '').join(' / ');
+    }, at);
+    ok(await cell('plex') === 'host / 10.0.0.10', `plex: ${await cell('plex')}`);
+    ok(await cell('nextcloud') === 'cloud_default / 172.20.0.3', `nextcloud: ${await cell('nextcloud')}`);
+    ok(await cell('nginx-proxy-manager') === 'br0 / 10.0.0.50', `nginx-proxy-manager: ${await cell('nginx-proxy-manager')}`);
+    ok(await cell('redis') === 'via nextcloud / shares its network', `redis: ${await cell('redis')}`);
+    ok(await cell('prowlarr') === 'bridge / not running', `prowlarr: ${await cell('prowlarr')}`);
+  }),
+
+  t('autostart shows the delay before the next container starts', async () => {
+    await fresh();
+    const label = (n) => text(`.sf-row-ct[data-container="${n}"] .sf-switch-label`);
+    ok(await label('mariadb') === 'On · 15 s', `mariadb: ${await label('mariadb')}`);
+    ok(await label('redis') === 'On', `redis: ${await label('redis')}`);
+    ok(await label('immich') === 'Off', `immich: ${await label('immich')}`);
+  }),
+
+  t('the container popover keeps its details folded until asked', async () => {
+    await fresh();
+    await openContainer('sonarr');
+    const state = () => page.$eval('.sf-ctm-details', (d) => ({
+      expanded: d.querySelector('.sf-ctm-disc').getAttribute('aria-expanded'),
+      hidden: d.querySelector('.sf-ctm-body').hidden,
+      text: d.querySelector('.sf-ctm-body').textContent
+    }));
+    let s = await state();
+    ok(s.expanded === 'false' && s.hidden, 'details should start folded');
+
+    await page.click('.sf-ctm-disc');
+    s = await state();
+    ok(s.expanded === 'true' && !s.hidden, 'one click should open the details');
+    for (const want of ['bridge', '172.17.0.5', '02:42:ac:11:00:05', '2026', '/tv', '→ /mnt/user/media/tv',
+                        '→ /mnt/user/downloads (read-only)']) {
+      ok(s.text.includes(want), `details should include "${want}": ${s.text}`);
+    }
+    await settle();
+    await shot('26-popover-details');
+  }),
+
+  t('columns hide, move and reset, and the layout is kept on the server', async () => {
+    await fresh();
+    const heads = () => page.$$eval('.sf-row-head .sf-cell', (n) => n.map((x) => x.textContent.trim()).filter(Boolean));
+    const saved = (want) => page.waitForFunction(async (w) => {
+      const r = await fetch('/plugins/simple.folders/include/Data.php').then((x) => x.json());
+      return JSON.stringify(r.columns) === w;
+    }, { timeout: 5000, polling: 200 }, JSON.stringify(want));
+
+    ok((await heads()).join('|') === 'Container|Status|Version|Network|Container Port|LAN IP:Port|CPU|Memory|Autostart',
+       `default columns were ${(await heads()).join('|')}`);
+
+    await page.click('.sf-btn-cols');
+    await page.waitForSelector('.sf-cols', { timeout: 3000 });
+    ok(await page.$eval('.sf-btn-cols', (b) => b.getAttribute('aria-expanded')) === 'true', 'the button should say its list is open');
+
+    await page.click('.sf-cols input[data-col="version"]');
+    ok(!(await heads()).includes('Version'), 'unticking Version should hide it');
+    const widths = await page.$$eval('.sf-row-head, .sf-row-folder, .sf-row-ct', (rows) => [...new Set(rows.map((r) => r.children.length))]);
+    ok(widths.length === 1, `every row should have as many cells as the header: ${JSON.stringify(widths)}`);
+
+    for (let i = 0; i < 4; i++) await page.click('.sf-cols [data-key="cpu"] [data-move="up"]');
+    ok((await heads()).join('|') === 'Container|Status|CPU|Network|Container Port|LAN IP:Port|Memory|Autostart',
+       `after moving CPU: ${(await heads()).join('|')}`);
+    const cpuAt = (await page.$$eval('.sf-row-head .sf-cell', (n) => n.map((x) => x.textContent.trim()))).indexOf('CPU');
+    ok(await page.$eval('.sf-row-ct[data-container="plex"]', (r, i) => r.children[i].classList.contains('sf-cell-cpu'), cpuAt),
+       'the CPU figures should move with their heading');
+    await shot('27-columns');
+
+    await saved({ order: ['status', 'cpu', 'version', 'network', 'cport', 'lan', 'memory', 'autostart'], hidden: ['version'] });
+    await page.goto(`${BASE}/?nostream=1`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('.sf-card', { timeout: 10000 });
+    ok((await heads()).join('|') === 'Container|Status|CPU|Network|Container Port|LAN IP:Port|Memory|Autostart',
+       `after a reload: ${(await heads()).join('|')}`);
+
+    await page.click('.sf-btn-cols');
+    await page.waitForSelector('.sf-cols', { timeout: 3000 });
+    await page.click('.sf-cols-reset');
+    ok((await heads()).join('|') === 'Container|Status|Version|Network|Container Port|LAN IP:Port|CPU|Memory|Autostart',
+       `after Reset: ${(await heads()).join('|')}`);
+    await saved({ order: ['status', 'version', 'network', 'cport', 'lan', 'cpu', 'memory', 'autostart'], hidden: [] });
+
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.sf-cols'), { timeout: 3000 });
+    ok(await page.evaluate(() => document.activeElement.classList.contains('sf-btn-cols')), 'Escape should return focus to Columns');
+  }),
+
+  t('the Columns list works from the keyboard', async () => {
+    await fresh();
+    const heads = () => page.$$eval('.sf-row-head .sf-cell', (n) => n.map((x) => x.textContent.trim()).filter(Boolean));
+    const focused = () => page.evaluate(() => {
+      const a = document.activeElement;
+      return a.getAttribute('aria-label') || a.getAttribute('data-col') || a.textContent.trim();
+    });
+
+    await page.focus('.sf-btn-cols');
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.sf-cols', { timeout: 3000 });
+    ok(await focused() === 'status', `the list should open on its first tick box, got "${await focused()}"`);
+
+    await page.keyboard.press('ArrowDown');
+    ok(await focused() === 'version', `ArrowDown went to "${await focused()}"`);
+    await page.keyboard.press('Space');
+    ok(!(await heads()).includes('Version'), 'Space should untick Version');
+    ok(await focused() === 'version', 'focus should stay on the tick box');
+
+    await page.keyboard.press('ArrowRight');
+    ok(await focused() === 'Move Version up', `ArrowRight went to "${await focused()}"`);
+    await page.keyboard.press('Enter');
+    /* Version is first now, so its up arrow is off; focus moves to down. */
+    ok(await focused() === 'Move Version down', `after moving to the top, focus was "${await focused()}"`);
+    ok((await page.$$eval('.sf-cols .sf-col-list .sf-col-row', (n) => n.map((r) => r.dataset.key)))[0] === 'version',
+       'Version should be first in the list');
+
+    await page.keyboard.press('Tab');
+    ok(await focused() === 'Reset', `Tab went to "${await focused()}"`);
+    await page.keyboard.press('Tab');
+    await page.waitForFunction(() => !document.querySelector('.sf-cols'), { timeout: 3000 });
+    ok(await page.evaluate(() => document.activeElement.classList.contains('sf-btn-cols')), 'Tab past Reset should leave the list');
+  }),
+
+  t('a column drags to a new place in the Columns list', async () => {
+    await fresh();
+    await page.click('.sf-btn-cols');
+    await page.waitForSelector('.sf-cols', { timeout: 3000 });
+
+    const grip = await (await page.$('.sf-cols [data-key="autostart"] .sf-col-grip')).boundingBox();
+    const top = await (await page.$('.sf-cols .sf-col-list .sf-col-row')).boundingBox();
+    const x = grip.x + grip.width / 2;
+    await page.mouse.move(x, grip.y + grip.height / 2);
+    await page.mouse.down();
+    for (let y = grip.y; y > top.y + 2; y -= 10) await page.mouse.move(x, y);
+    await page.mouse.move(x, top.y + 2);
+    await page.mouse.up();
+
+    const heads = await page.$$eval('.sf-row-head .sf-cell', (n) => n.map((x) => x.textContent.trim()).filter(Boolean));
+    ok(heads.slice(0, 3).join('|') === 'Container|Autostart|Status', `after the drag: ${heads.join('|')}`);
+    ok(await count('.sf-cols') === 1, 'the list should stay open after a drag');
   })
 ];
 
