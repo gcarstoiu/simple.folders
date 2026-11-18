@@ -7,9 +7,13 @@ unfold it to see the full container rows in start order, and run start, stop,
 restart, pause, resume, update or force update across a whole folder — one
 container at a time, in the order you chose.
 
+Each container row also shows what Docker reports about it — uptime, health,
+how it last exited, its version, network and address — in columns you can hide
+and reorder.
+
 Supports **Unraid 7.2 – 7.4**.
 
-![Folders on the Docker page](docs/screenshot-folded.png)
+![Folders on the Docker page, folded, with the containers that are in no folder below them](docs/screenshot-folded.png)
 
 ---
 
@@ -55,7 +59,11 @@ Supports **Unraid 7.2 – 7.4**.
   size. Stop and Pause confirm first.
 - **Classic view.** One switch puts Unraid's standard table back, untouched.
 
-![A folder unfolded, showing its containers in start order](docs/screenshot-expanded.png)
+![Every folder unfolded, showing its containers in start order with their status, version and network](docs/screenshot-expanded.png)
+
+![A container's menu with its Details open: network, IP, MAC, creation date and volume mappings](docs/screenshot-details.png)
+
+![The Columns list, where columns are hidden and put in order](docs/screenshot-columns.png)
 
 Editing or deleting a folder **never** stops, removes or recreates a
 container. Deleting one only removes the grouping; its containers keep running
@@ -165,6 +173,8 @@ python3 tools/contrast.py      # WCAG check on both token sets
 `run.sh` walks `design/DESIGN_SPEC.md` §15's acceptance checklist with real
 clicks and keystrokes, driving a headless Chrome over CDP, and writes a
 screenshot per state to `harness/test/shots/`.
+`node harness/test/shoot.mjs`, against the same harness and Chrome, rewrites
+the screenshots in `docs/`.
 
 ### Packaging
 

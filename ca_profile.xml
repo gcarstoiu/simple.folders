@@ -28,6 +28,11 @@ order the folder uses. Editing or deleting a folder never stops, removes or
 recreates a container, and a "Classic view" switch restores the standard
 Unraid table at any time.
 
+Every container row also shows what Docker reports: uptime, health and how it
+last exited, with problems in amber; its image version, Compose stack, network
+and address. Columns can be hidden and reordered, and the layout is the same
+on every device.
+
 Requires Unraid 7.2 or newer. Support through the repository's Issues page.
 
 Folder icons can be searched and downloaded from [Dashboard Icons](https://github.com/homarr-labs/dashboard-icons) (Apache-2.0) and [selfh.st/icons](https://selfh.st/icons/) (CC BY 4.0); no artwork is bundled with the plugin.
