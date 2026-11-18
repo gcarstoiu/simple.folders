@@ -43,10 +43,18 @@
 
     Editing or deleting a folder never stops, removes or recreates a container; deleting one only removes the grouping and its containers move to "Not in a folder". A "Classic view" switch restores the standard Unraid table at any time, and uninstalling leaves the stock page exactly as it was.
 
+    Each container row also shows what Docker reports: how long it has been up, its health check and how it last exited, with restarting, unhealthy and error exits in amber; the image version, its Compose stack, its network and address, and its start delay. A Columns list hides and reorders the table's columns, and the layout is the same on every device.
+
     Folder definitions are stored on the flash drive and survive reboots. No core Unraid file is modified.
   </Overview>
 
   <Changes>
+### 2026.11.18
+- Container status shows uptime, health and exit codes; problems stand out in amber.
+- Image version, Compose stack, a Network column and the start delay.
+- Container menu: Details with networks, MAC, creation date and volume mappings.
+- New Columns list to hide and reorder columns, saved for every device.
+
 ### 2026.11.16
 - Fix: the containers show above Compose Manager's stacks again.
 - Fix: in the tabbed page view, the containers no longer show under the Compose tab.

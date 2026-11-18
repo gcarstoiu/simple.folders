@@ -7,8 +7,8 @@
 <!ENTITY plugdir   "/usr/local/emhttp/plugins/&name;">
 <!ENTITY cfgdir    "/boot/config/plugins/&name;">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/&github;/main/&name;.plg">
-<!ENTITY version   "2026.11.16">
-<!ENTITY md5       "0f6fd95fefc3bf3973c53e5688697c60">
+<!ENTITY version   "2026.11.18">
+<!ENTITY md5       "c6f115e6c5dd66ac1e5c3840b700bcf7">
 ]>
 
 <PLUGIN name="&name;"
@@ -21,6 +21,18 @@
         support="https://github.com/&github;/issues">
 
 <CHANGES>
+###2026.11.18
+- Each container shows how long it has been up, its health, and how it
+  last exited. Restarting, unhealthy and error exits show in amber, also on
+  their folder and in the summary line.
+- The image's version, and the Compose stack a container belongs to.
+- New Network column: the network and the container's address.
+- The autostart switch shows the start delay.
+- Container menu: Details with networks, IP, MAC, creation date and volume
+  mappings.
+- New Columns list: hide columns and change their order. The layout is saved
+  on the server, so every device shows the same table.
+
 ###2026.11.16
 - Fix: Compose Manager's stacks showed above the containers; the containers
   are back under the Docker Containers heading, as on Unraid's own page.
