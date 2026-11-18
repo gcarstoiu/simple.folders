@@ -108,6 +108,12 @@
 
   API.applyAutostart = function (id)   { return post(PLUGIN + '/Autostart.php', { action: 'apply', id: id }); };
 
+  /* Which columns show and in what order; saved on the server for every
+   * device. Data.php reads it back. */
+  API.saveColumns = function (order, hidden) {
+    return post(PLUGIN + '/Columns.php', { action: 'set', order: order.join(','), hidden: hidden.join(',') });
+  };
+
   API.searchIcons    = function (q)    { return post(PLUGIN + '/Icons.php', { action: 'search',   query: q }); };
   API.downloadIcon   = function (p)    { return post(PLUGIN + '/Icons.php', Object.assign({ action: 'download' }, p)); };
 

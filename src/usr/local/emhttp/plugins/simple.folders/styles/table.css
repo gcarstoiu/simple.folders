@@ -139,6 +139,10 @@
 }
 .sf-root .sf-btn-primary:hover:not(:disabled) { background: var(--sf-accent-hover); border-color: var(--sf-accent-hover); }
 
+.sf-root .sf-btn-cols { display: inline-flex; align-items: center; gap: 7px; }
+.sf-root .sf-btn-cols svg { width: 16px; height: 16px; color: var(--sf-text-muted); }
+.sf-root .sf-btn-cols[aria-expanded="true"] { background: var(--sf-bg-hover-ghost); }
+
 .sf-root .sf-classic {
   display: inline-flex; align-items: center; gap: 7px;
   font-size: var(--sf-fs-caption); color: var(--sf-text-muted);
@@ -434,6 +438,66 @@
   animation: sf-spin .8s linear infinite;
 }
 @keyframes sf-spin { to { transform: rotate(360deg); } }
+
+/* Restarting and unhealthy need attention: amber, each with its own shape -
+   a spinning arc for restarting, a diamond for unhealthy. */
+.sf-root .sf-status-restarting,
+.sf-root .sf-status-unhealthy { color: var(--sf-warn-fg); }
+.sf-root .sf-dot-restarting {
+  background: transparent;
+  border: 2px solid var(--sf-warn-fg);
+  border-top-color: transparent;
+  animation: sf-spin .8s linear infinite;
+}
+.sf-root .sf-dot-unhealthy {
+  background: var(--sf-warn-fg);
+  border-radius: 2px;
+  transform: rotate(45deg) scale(.82);
+}
+.sf-root .sf-seg-restarting,
+.sf-root .sf-seg-unhealthy { background: var(--sf-warn-fg); }
+
+/* The line under a status: uptime and health, or how it last exited. */
+.sf-root .sf-sub {
+  margin-top: 2px; padding-left: 18px;
+  font-size: var(--sf-fs-caption); color: var(--sf-text-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sf-root .sf-sub-warn { color: var(--sf-warn-fg); }
+.sf-root .sf-folder-alert { margin-top: 5px; font-size: var(--sf-fs-caption); color: var(--sf-warn-fg); }
+.sf-root .sf-summary-warn { color: var(--sf-warn-fg); }
+
+/* Name, then the Compose stack it belongs to. The name gives way first. */
+.sf-root .sf-ct-line1 { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sf-root .sf-ct-line1 .sf-ct-name { min-width: 0; }
+.sf-root .sf-stack {
+  flex: 0 1 auto; min-width: 0; max-width: 130px;
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 19px; padding: 0 7px 0 5px;
+  border: 1px solid var(--sf-border-row); border-radius: var(--sf-r-pill);
+  font-size: var(--sf-fs-eyebrow); color: var(--sf-text-muted); white-space: nowrap;
+}
+.sf-root .sf-stack svg { flex: none; width: 11px; height: 11px; }
+.sf-root .sf-stack span { overflow: hidden; text-overflow: ellipsis; }
+
+/* The image's own version number, above the update state. */
+.sf-root .sf-version {
+  margin-bottom: 3px;
+  font-family: var(--sf-font-mono); font-size: var(--sf-fs-caption); color: var(--sf-text-secondary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Network name, and the container's address on it. */
+.sf-root .sf-net-name { font-size: var(--sf-fs-small); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sf-root .sf-net-ip {
+  margin-top: 2px;
+  font-family: var(--sf-font-mono); font-size: var(--sf-fs-caption); color: var(--sf-text-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sf-root .sf-net-ip.is-text { font-family: inherit; }
+
+/* The delay before the next container starts, beside the autostart switch. */
+.sf-root .sf-wait { color: var(--sf-text-dim); }
 
 /* ---- badges ---- */
 .sf-root .sf-badge {

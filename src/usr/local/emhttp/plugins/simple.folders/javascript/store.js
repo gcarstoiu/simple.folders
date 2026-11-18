@@ -19,6 +19,13 @@
   var listeners = [];
   var liveListeners = [];
 
+  /* Today's column order; the keys match SF_COLUMN_KEYS in lib/Columns.php. */
+  var COLUMN_KEYS = ['status', 'version', 'network', 'cport', 'lan', 'cpu', 'memory', 'autostart'];
+
+  /* A layout change waiting to be saved, or on its way. While one is, a
+   * refresh must not put the old layout back. */
+  var columnsSave = { timer: null, pending: false };
+
   var state = {
     folders: [],
     containers: [],
@@ -31,6 +38,10 @@
     byName: {},          // name -> container
     live: {},            // name -> {cpu, mem}   from the dockerload channel
     busy: {},            // name -> label        while a job is acting on it
+
+    /* Which columns show and in what order, from the server (lib/Columns.php).
+     * Container and the row menu are not listed: they never move or hide. */
+    columns: { order: COLUMN_KEYS.slice(), hidden: [] },
 
     filter: '',
     classic: U.pref.get('classic', false),
@@ -64,6 +75,7 @@
       state.loose      = payload.loose || [];
       state.order      = payload.order || [];
       state.stats      = payload.stats || state.stats;
+      if (payload.columns && !columnsSave.pending) state.columns = cleanColumns(payload.columns);
       state.loaded     = true;
       state.error      = null;
 
@@ -146,13 +158,47 @@
      * ---------------------------------------------------------------- */
 
     /* A container's effective status, with any in-flight job taking
-     * precedence - a row must not claim "Running" while it is being stopped. */
+     * precedence - a row must not claim "Running" while it is being stopped.
+     * Restarting and unhealthy are their own kinds: each has its own marker
+     * shape, so neither relies on colour alone. */
     status: function (ct) {
       if (state.busy[ct.name]) return { kind: 'busy', label: state.busy[ct.name] };
-      if (ct.state === 'running') return { kind: 'running', label: 'Running' };
+      if (ct.run === 'restarting') return { kind: 'restarting', label: 'Restarting' };
+      if (ct.state === 'running') {
+        return ct.health === 'unhealthy'
+          ? { kind: 'unhealthy', label: 'Unhealthy' }
+          : { kind: 'running', label: 'Running' };
+      }
       if (ct.state === 'paused')  return { kind: 'paused',  label: 'Paused' };
       return { kind: 'stopped', label: 'Stopped' };
     },
+
+    /* The line under the status: how long it has been up, its health, or how
+     * it last exited. Exit codes 0 and 143 (SIGTERM) are a normal stop; any
+     * other code is flagged. Null while a job is acting on the container. */
+    statusDetail: function (ct) {
+      if (state.busy[ct.name]) return null;
+      var since = ct.since || '';
+      if (ct.run === 'restarting') {
+        return { text: joinDot(ct.exitCode !== null && ct.exitCode !== undefined ? 'exit ' + ct.exitCode : '', since), warn: true };
+      }
+      if (ct.state === 'running' || ct.state === 'paused') {
+        if (ct.state === 'running' && ct.health === 'starting') return { text: 'health check pending', warn: false };
+        var up = since ? 'up ' + since : '';
+        return up || ct.health === 'healthy'
+          ? { text: joinDot(up, ct.state === 'running' && ct.health === 'healthy' ? 'healthy' : ''), warn: false }
+          : null;
+      }
+      if (ct.run === 'created') return { text: 'never started', warn: false };
+      var code = ct.exitCode;
+      var bad = code !== null && code !== undefined && code !== 0 && code !== 143;
+      if (bad) return { text: joinDot('exit ' + code, since), warn: true };
+      return since ? { text: since, warn: false } : null;
+    },
+
+    /* Running, excluding a container stuck restarting: Docker reports those
+     * as running between attempts, but nothing is being served. */
+    isRunning: function (ct) { return ct.state === 'running' && ct.run !== 'restarting'; },
 
     cpu: function (ct) {
       var live = state.live[ct.name];
@@ -168,13 +214,15 @@
     summary: function (folder) {
       var members = S.members(folder);
       var running = 0, paused = 0, stopped = 0, updates = 0, busy = 0;
+      var unhealthy = 0, restarting = 0;
       var cpu = 0, mem = 0, haveCpu = false, haveMem = false;
 
       members.forEach(function (ct) {
         var status = S.status(ct);
         if (status.kind === 'busy') busy++;
 
-        if (ct.state === 'running') running++;
+        if (ct.run === 'restarting') { restarting++; stopped++; }
+        else if (ct.state === 'running') { running++; if (ct.health === 'unhealthy') unhealthy++; }
         else if (ct.state === 'paused') paused++;
         else stopped++;
 
@@ -193,6 +241,8 @@
         stopped: stopped,
         updates: updates,
         busy: busy,
+        unhealthy: unhealthy,
+        restarting: restarting,
         allRunning: members.length > 0 && running === members.length,
         cpu: haveCpu ? cpu : null,
         mem: haveMem ? mem : null,
@@ -233,6 +283,36 @@
       S.emit();
     },
 
+    /* ------------------------------------------------------------------
+     * Columns
+     * ---------------------------------------------------------------- */
+    columnKeys: function () { return COLUMN_KEYS.slice(); },
+
+    /* The movable columns in table order, each with whether it shows. */
+    columns: function () {
+      return state.columns.order.map(function (key) {
+        return { key: key, shown: state.columns.hidden.indexOf(key) === -1 };
+      });
+    },
+
+    setColumns: function (order, hidden) {
+      state.columns = cleanColumns({ order: order, hidden: hidden });
+      S.emit();
+
+      /* Dragging changes the order many times a second; save once it
+       * settles. The flash drive should not take a write per pixel. */
+      columnsSave.pending = true;
+      clearTimeout(columnsSave.timer);
+      columnsSave.timer = setTimeout(function () {
+        var sent = state.columns;
+        SF.api.saveColumns(sent.order, sent.hidden)
+          .catch(function (err) { if (SF.jobs) SF.jobs.toast('Could not save the columns: ' + err.message, 'error'); })
+          .then(function () { if (state.columns === sent) columnsSave.pending = false; });
+      }, 400);
+    },
+
+    resetColumns: function () { S.setColumns(COLUMN_KEYS.slice(), []); },
+
     setBusy: function (name, label) {
       if (label) state.busy[name] = label; else delete state.busy[name];
       S.emit();
@@ -270,6 +350,22 @@
         .filter(function (ct) { return U.matches(ct.name, state.filter); });
     }
   };
+
+  /* Known keys only, each once, anything missing appended - the same rule as
+   * sf_columns_clean() on the server. */
+  function cleanColumns(raw) {
+    var order = [], hidden = [];
+    (raw.order || []).forEach(function (k) {
+      if (COLUMN_KEYS.indexOf(k) !== -1 && order.indexOf(k) === -1) order.push(k);
+    });
+    COLUMN_KEYS.forEach(function (k) { if (order.indexOf(k) === -1) order.push(k); });
+    (raw.hidden || []).forEach(function (k) {
+      if (COLUMN_KEYS.indexOf(k) !== -1 && hidden.indexOf(k) === -1) hidden.push(k);
+    });
+    return { order: order, hidden: hidden };
+  }
+
+  function joinDot(a, b) { return [a, b].filter(Boolean).join(' · '); }
 
   /* All on / all off / mixed, for the folder's tri-state switch (spec 4.3). */
   function autostartState(members) {

@@ -122,11 +122,13 @@
   --sf-r-pill:    999px;
 
   /* ---- metrics ---- */
-  /* Column 1 holds the drag grip AND the chevron side by side, so it is 52
-     not 40: 52 + 260 + 150 + 124 + 112 + 150 + 72 + 92 + 104 + 44 = 1160,
-     plus nine 10px gaps and 24px of side padding. */
-  --sf-table-min:      1274px;
-  --sf-grid: 52px minmax(260px, 1fr) 150px 124px 112px 150px 72px 92px 104px 44px;
+  /* Every column shown, in the original order. render.js sets both on the
+     card from the column layout; these are only the starting point.
+     Column 1 holds the drag grip AND the chevron side by side, so it is 52
+     not 40: 52 + 260 + 150 + 150 + 150 + 112 + 150 + 72 + 92 + 104 + 44 =
+     1336, plus ten 10px gaps and 24px of side padding. */
+  --sf-table-min:      1460px;
+  --sf-grid: 52px minmax(260px, 1fr) 150px 150px 150px 112px 150px 72px 92px 104px 44px;
   --sf-grid-gap:       10px;
   --sf-row-pad-x:      12px;
   --sf-folder-row-min: 64px;

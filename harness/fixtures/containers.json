@@ -15,10 +15,29 @@
     { "id": "ct0000000010", "name": "open-webui",          "image": "ghcr.io/open-webui/open-webui", "state": "running", "update": 0, "port": 3000, "cpu": 1.9, "mem": 751619276, "autostart": true, "wait": 0, "webui": "http://tower:3000", "letter": "W", "tint": "blue"   },
 
     { "id": "ct0000000011", "name": "nextcloud",           "image": "linuxserver/nextcloud",     "state": "running", "update": 1, "port": 443,   "cpu": 0.7, "mem": 408944640,  "autostart": true,  "wait": 0, "webui": "https://tower:443",      "letter": "N", "tint": "blue"   },
-    { "id": "ct0000000012", "name": "mariadb",             "image": "linuxserver/mariadb",       "state": "running", "update": 0, "port": 3306,  "cpu": 0.5, "mem": 272629760,  "autostart": true,  "wait": 0, "webui": "",                       "letter": "M", "tint": "teal"   },
+    { "id": "ct0000000012", "name": "mariadb",             "image": "linuxserver/mariadb",       "state": "running", "update": 0, "port": 3306,  "cpu": 0.5, "mem": 272629760,  "autostart": true,  "wait": 15, "webui": "",                       "letter": "M", "tint": "teal"   },
     { "id": "ct0000000013", "name": "redis",               "image": "redis",                     "state": "running", "update": 0, "port": 6379,  "cpu": 0.2, "mem": 41943040,   "autostart": true,  "wait": 0, "webui": "",                       "letter": "R", "tint": "rose"   },
     { "id": "ct0000000014", "name": "nginx-proxy-manager", "image": "jc21/nginx-proxy-manager",  "state": "running", "update": 0, "port": 81,    "cpu": 0.3, "mem": 157286400,  "autostart": true,  "wait": 0, "webui": "http://tower:81",        "letter": "N", "tint": "green"  },
     { "id": "ct0000000015", "name": "vaultwarden",         "image": "vaultwarden/server",        "state": "running", "update": 0, "port": 8000,  "cpu": 0.1, "mem": 36700160,   "autostart": true,  "wait": 0, "webui": "http://tower:8000",      "letter": "V", "tint": "slate"  },
     { "id": "ct0000000016", "name": "immich",              "image": "immich-app/immich-server",  "state": "stopped", "update": 0, "port": 2283,  "cpu": 0,   "mem": 0,          "autostart": false, "wait": 0, "webui": "http://tower:2283",      "letter": "I", "tint": "violet" }
-  ]
+  ],
+  "$docker": "What Docker's own container list reports beyond the fields above: Status, State, labels, network and mounts. mock/container_source.php turns each entry into the raw /containers/json shape and runs it through the plugin's own parsing.",
+  "docker": {
+    "plex":                {"status": "Up 3 days (healthy)", "network": {"mode": "host"}, "labels": {"org.opencontainers.image.version": "1.41.2.9200"}},
+    "qbittorrent":         {"status": "Up 3 days", "labels": {"org.opencontainers.image.version": "5.0.1-r0-ls360"}},
+    "prowlarr":            {"status": "Exited (137) 6 hours ago", "labels": {"org.opencontainers.image.version": "1.25.4.4818-ls91"}},
+    "sonarr":              {"status": "Up 3 days", "labels": {"org.opencontainers.image.version": "4.0.10.2544-ls259"}, "mounts": [["/config", "/mnt/user/appdata/sonarr"], ["/tv", "/mnt/user/media/tv"], ["/downloads", "/mnt/user/downloads", false]]},
+    "radarr":              {"status": "Up 20 seconds (health: starting)"},
+    "mosquitto":           {"status": "Up 3 days", "labels": {"org.opencontainers.image.version": "2.0.20"}},
+    "zigbee2mqtt":         {"status": "Up 3 days (Paused)"},
+    "homeassistant":       {"status": "Up 3 days", "network": {"mode": "host"}},
+    "ollama":              {"status": "Up 3 days"},
+    "open-webui":          {"status": "Up 5 hours (unhealthy)", "labels": {"org.opencontainers.image.version": "0.4.4"}},
+    "nextcloud":           {"status": "Up 6 hours", "network": {"mode": "cloud_default", "ip": "172.20.0.3"}, "labels": {"com.docker.compose.project": "cloud"}},
+    "mariadb":             {"status": "Up 6 hours (healthy)", "network": {"mode": "cloud_default", "ip": "172.20.0.2"}, "labels": {"com.docker.compose.project": "cloud", "org.opencontainers.image.version": "11.4.3-r0-ls160"}},
+    "redis":               {"status": "Up 6 hours", "network": {"mode": "container:ct0000000011"}, "labels": {"com.docker.compose.project": "cloud"}},
+    "nginx-proxy-manager": {"status": "Up 3 days", "network": {"mode": "br0", "ip": "10.0.0.50", "vlan": true}},
+    "vaultwarden":         {"status": "Up 3 days (healthy)", "network": {"mode": "proxynet", "ip": "172.18.0.5"}},
+    "immich":              {"run": "restarting", "status": "Restarting (1) 8 seconds ago"}
+  }
 }

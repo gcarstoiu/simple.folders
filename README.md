@@ -42,6 +42,14 @@ Supports **Unraid 7.2 – 7.4**.
   the folders. Pointer Events, so touch works as well as a mouse — and every
   one of those moves is also in the menus and the editor, which is what
   keyboard users have.
+- **What Docker says about each container.** How long it has been up, its
+  health check, and how it last exited; restarting, unhealthy and error exits
+  stand out in amber, on the row, its folder and the summary line. Also the
+  image's version, the Compose stack it belongs to, its network and address,
+  and its start delay. Volume mappings, MAC and creation date are in its menu.
+- **Columns you choose.** Hide any column and put the rest in any order from
+  the Columns list. The layout is saved on the server, so every device shows
+  the same table.
 - **The classic Docker actions** at the foot of the table: add a container,
   start/stop/pause/resume everything, check for and apply updates, container
   size. Stop and Pause confirm first.
@@ -107,6 +115,7 @@ two menu items differ only in which containers they target.
 |---|---|
 | `/boot/config/plugins/simple.folders/folders.json` | folder definitions (flash, survives reboots) |
 | `/boot/config/plugins/simple.folders/icons/` | downloaded folder icons |
+| `/boot/config/plugins/simple.folders/columns.json` | which columns show, and their order |
 | `/usr/local/emhttp/plugins/simple.folders/` | the plugin itself (RAM; rebuilt each boot) |
 | browser `localStorage` | which folders *you* have open, and Classic view |
 

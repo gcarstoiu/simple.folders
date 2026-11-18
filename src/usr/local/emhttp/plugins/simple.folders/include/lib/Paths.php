@@ -20,6 +20,10 @@ defined('SF_CONFIG_DIR') || define('SF_CONFIG_DIR', '/boot/config/plugins/'.SF_P
 defined('SF_ICON_DIR')   || define('SF_ICON_DIR', SF_CONFIG_DIR.'/icons');
 defined('SF_FOLDERS')    || define('SF_FOLDERS', SF_CONFIG_DIR.'/folders.json');
 
+/* Which table columns show, and in what order. Saved on the server so every
+ * device shows the same table. */
+defined('SF_COLUMNS')    || define('SF_COLUMNS', SF_CONFIG_DIR.'/columns.json');
+
 /* Per-job scratch for update runs. Deliberately on tmpfs: a job that did not
  * finish before a reboot is meaningless. */
 defined('SF_RUN_DIR')    || define('SF_RUN_DIR', '/var/tmp/'.SF_PLUGIN);

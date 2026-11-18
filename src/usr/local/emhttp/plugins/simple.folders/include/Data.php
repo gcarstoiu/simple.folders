@@ -24,6 +24,7 @@ sf_install_error_handler();
 
 require_once __DIR__.'/lib/Store.php';
 require_once __DIR__.'/lib/Containers.php';
+require_once __DIR__.'/lib/Columns.php';
 
 $containers = sf_containers();
 $folders    = sf_store_load();
@@ -53,11 +54,18 @@ foreach ($containers as $ct) {
   if (!isset($assigned[$ct['name']])) $loose[] = $ct['name'];
 }
 
-/* Header summary line: "16 containers - 13 running - 3 folders - 4 updates ready" */
-$running = 0; $updates = 0;
+/* Header summary line: "16 containers - 13 running - 1 unhealthy - 3 folders
+ * - 4 updates ready" */
+$running = 0; $updates = 0; $unhealthy = 0; $restarting = 0;
 foreach ($containers as $ct) {
-  if ($ct['state'] === 'running') $running++;
-  if ($ct['update'] === 1)        $updates++;
+  if ($ct['update'] === 1) $updates++;
+  /* A container stuck restarting is counted as that, not as running:
+   * Docker reports it running between attempts, but nothing is served. */
+  if (($ct['run'] ?? '') === 'restarting') { $restarting++; continue; }
+  if ($ct['state'] === 'running') {
+    $running++;
+    if (($ct['health'] ?? '') === 'unhealthy') $unhealthy++;
+  }
 }
 
 sf_ok([
@@ -70,7 +78,10 @@ sf_ok([
     'running'    => $running,
     'folders'    => count($outFolders),
     'updates'    => $updates,
+    'unhealthy'  => $unhealthy,
+    'restarting' => $restarting,
   ],
+  'columns'    => sf_columns_load(),
   /* Unraid's own container start order, as recorded in the autostart file.
    * Global Start/Stop from the action bar follow it, so a manual "start
    * everything" matches what happens at boot. */

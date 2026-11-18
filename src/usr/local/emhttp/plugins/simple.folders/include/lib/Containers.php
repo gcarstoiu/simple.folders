@@ -56,7 +56,7 @@ if (!function_exists('sf_containers_source')) {
 /* Return every container, name-sorted, in the shape the UI consumes.
  *
  *   [ name, id, image, state, update, port, autostart, wait, webui,
- *     icon, template, shell, labels{} ]
+ *     icon, template, shell, labels{} ]  plus sf_container_details()
  *
  * state  : running | paused | stopped
  * update : 0 up to date | 1 update ready | 2 rebuild ready | 3 unknown
@@ -98,12 +98,18 @@ function sf_containers(): array {
    * user template for every container in one pass. */
   $allInfo = $DockerTemplates->getAllInfo();
 
-  /* Labels are not exposed by getDockerContainers(), so take them from the
-   * raw list endpoint - one call, not one inspect per container. */
+  /* Labels, health, exit codes, networks and mounts are not exposed by
+   * getDockerContainers(), so take them from the raw list endpoint - one
+   * call, not one inspect per container. */
   $labels = [];
+  $rawByName = [];
+  $idToName = [];
   foreach ((array)$DockerClient->getDockerJSON('/containers/json?all=1') as $raw) {
     $name = ltrim($raw['Names'][0] ?? '', '/');
-    if ($name !== '') $labels[$name] = (array)($raw['Labels'] ?? []);
+    if ($name === '') continue;
+    $labels[$name] = (array)($raw['Labels'] ?? []);
+    $rawByName[$name] = (array)$raw;
+    if (!empty($raw['Id'])) $idToName[(string)$raw['Id']] = $name;
   }
 
   /* Per-container autostart wait, as stored in Unraid's autostart file:
@@ -144,10 +150,114 @@ function sf_containers(): array {
       'template'  => $info['template'] ?? '',
       'shell'     => $info['shell'] ?? '',
       'labels'    => $labels[$name] ?? [],
-    ];
+    ] + sf_container_details($rawByName[$name] ?? [], $idToName, $host);
   }
 
   return sf_apply_display_order($out);
+}
+
+/* ---------------------------------------------------------------------------
+ * What the list endpoint says beyond Unraid's own summary: health, uptime,
+ * exit code, network, mounts, creation time, and the version and Compose
+ * labels. $raw is one entry of /containers/json; the harness builds the same
+ * shape from its fixtures, so this runs under test too.
+ *
+ *   run       Docker's own state: running | paused | restarting | exited |
+ *             created | dead | removing
+ *   health    '' | healthy | unhealthy | starting
+ *   exitCode  last exit code, or null when Docker gives none
+ *   since     "3 days" while up, "2 days ago" once exited (Docker's words)
+ *   network   the container's main network; networks lists every one
+ *   via       for container:<other> networking, the other container's name
+ * ------------------------------------------------------------------------- */
+function sf_container_details(array $raw, array $idToName, string $host): array {
+  $status = sf_parse_status((string)($raw['State'] ?? ''), (string)($raw['Status'] ?? ''));
+  $labels = is_array($raw['Labels'] ?? null) ? $raw['Labels'] : [];
+
+  return $status + sf_network_details($raw, $idToName, $host) + [
+    'mounts'  => sf_mounts($raw['Mounts'] ?? []),
+    'created' => (int)($raw['Created'] ?? 0),
+    'version' => sf_label_text($labels['org.opencontainers.image.version'] ?? ''),
+    'stack'   => sf_label_text($labels['com.docker.compose.project'] ?? ''),
+  ];
+}
+
+/* Docker words Status as "Up 3 days (healthy)", "Up 20 seconds (health:
+ * starting)", "Up 3 days (Paused)", "Exited (137) 6 hours ago",
+ * "Restarting (1) 8 seconds ago" or just "Created". */
+function sf_parse_status(string $state, string $status): array {
+  $out = ['run' => strtolower($state), 'health' => '', 'exitCode' => null,
+          'since' => '', 'statusText' => $status];
+  $status = trim($status);
+
+  if (preg_match('/^Up (.+?)(?: \(([^()]+)\))?$/', $status, $m)) {
+    $out['since'] = lcfirst($m[1]);
+    $note = strtolower($m[2] ?? '');
+    if ($note === 'healthy' || $note === 'unhealthy') $out['health'] = $note;
+    elseif ($note === 'health: starting')             $out['health'] = 'starting';
+    if ($out['run'] === '') $out['run'] = $note === 'paused' ? 'paused' : 'running';
+  } elseif (preg_match('/^(Exited|Restarting) \((-?\d+)\) (.+)$/', $status, $m)) {
+    $out['exitCode'] = (int)$m[2];
+    $out['since'] = lcfirst($m[3]);
+    if ($out['run'] === '') $out['run'] = strtolower($m[1]) === 'exited' ? 'exited' : 'restarting';
+  } elseif ($out['run'] === '' && $status === 'Created') {
+    $out['run'] = 'created';
+  }
+  return $out;
+}
+
+/* The network the container runs on, and every network it is attached to.
+ * Host networking has no address of its own, so it shows the server's. */
+function sf_network_details(array $raw, array $idToName, string $host): array {
+  $mode = (string)($raw['HostConfig']['NetworkMode'] ?? '');
+  $nets = is_array($raw['NetworkSettings']['Networks'] ?? null) ? $raw['NetworkSettings']['Networks'] : [];
+
+  if (strpos($mode, 'container:') === 0) {
+    /* Docker stores the other container by id or by name; show its name. */
+    $ref = substr($mode, 10);
+    $via = $idToName[$ref] ?? null;
+    if ($via === null && $ref !== '') {
+      foreach ($idToName as $id => $name) {
+        if ($name === $ref || strpos($id, $ref) === 0) { $via = $name; break; }
+      }
+    }
+    return ['network' => '', 'via' => $via ?? substr($ref, 0, 12), 'networks' => []];
+  }
+
+  $list = [];
+  foreach ($nets as $name => $net) {
+    $name = (string)$name;
+    $ip = (string)($net['IPAddress'] ?? '');
+    if ($name === 'host' && $ip === '') $ip = $host;
+    $list[] = ['name' => $name, 'ip' => $ip, 'mac' => (string)($net['MacAddress'] ?? '')];
+  }
+
+  /* The mode names the main network; list it first. "default" is bridge. */
+  $main = $mode === 'default' ? 'bridge' : $mode;
+  usort($list, fn($a, $b) => ($b['name'] === $main) <=> ($a['name'] === $main));
+  if (!$list && $main !== '') $list[] = ['name' => $main, 'ip' => $main === 'host' ? $host : '', 'mac' => ''];
+
+  return ['network' => $list[0]['name'] ?? '', 'via' => '', 'networks' => $list];
+}
+
+/* Volume mappings, container path first: [{dest, source, rw}]. */
+function sf_mounts($mounts): array {
+  $out = [];
+  foreach ((array)$mounts as $m) {
+    if (!is_array($m) || empty($m['Destination'])) continue;
+    $out[] = [
+      'dest'   => (string)$m['Destination'],
+      'source' => (string)($m['Source'] ?? ($m['Name'] ?? '')),
+      'rw'     => !array_key_exists('RW', $m) || (bool)$m['RW'],
+    ];
+  }
+  return $out;
+}
+
+/* Label values go straight into the page; keep them short and single-line. */
+function sf_label_text($value): string {
+  $value = trim(preg_replace('/\s+/', ' ', (string)$value));
+  return mb_substr($value, 0, 64);
 }
 
 /* Order containers the way Unraid's stock Docker page does: by the position
