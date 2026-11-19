@@ -22,6 +22,8 @@
   <Icon>https://raw.githubusercontent.com/gcarstoiu/simple.folders/main/src/usr/local/emhttp/plugins/simple.folders/images/icon.png</Icon>
   <Screenshot>https://raw.githubusercontent.com/gcarstoiu/simple.folders/main/docs/screenshot-folded.png</Screenshot>
   <Screenshot>https://raw.githubusercontent.com/gcarstoiu/simple.folders/main/docs/screenshot-expanded.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/gcarstoiu/simple.folders/main/docs/screenshot-details.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/gcarstoiu/simple.folders/main/docs/screenshot-columns.png</Screenshot>
 
   <Category>Tools:Utilities Productivity:</Category>
   <MinVer>7.2.0</MinVer>

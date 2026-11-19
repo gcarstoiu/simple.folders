@@ -1,4 +1,5 @@
-/* simple.folders - product screenshots for the Community Apps listing.
+/* simple.folders - product screenshots for the README and the Community Apps
+ * listing.
  *
  *   node harness/test/shoot.mjs
  *
@@ -16,13 +17,19 @@ const OUT  = join(dirname(fileURLToPath(import.meta.url)), '../../docs');
 const BASE = process.env.HARNESS_URL || 'http://localhost:8089';
 const CDP  = process.env.CDP_URL || 'http://localhost:9222';
 
-const browser = await puppeteer.connect({ browserURL: CDP, defaultViewport: { width: 1360, height: 900 } });
-const page = await browser.newPage();
+/* Wide enough for every column without the table scrolling sideways
+ * (--sf-table-min plus the page's padding). */
+const WIDTH = 1520;
 
-async function capture(name, query, height) {
+const browser = await puppeteer.connect({ browserURL: CDP, defaultViewport: { width: WIDTH, height: 900 } });
+const page = await browser.newPage();
+await page.evaluateOnNewDocument(() => { try { localStorage.clear(); } catch (e) {} });
+
+const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function open(query) {
   await page.goto(`${BASE}/_reset`, { waitUntil: 'domcontentloaded' });
-  await page.evaluateOnNewDocument(() => { try { localStorage.clear(); } catch (e) {} });
-  await page.setViewport({ width: 1360, height });
+  await page.setViewport({ width: WIDTH, height: 900 });
   await page.goto(`${BASE}/?nostream=1${query}`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('.sf-card');
 
@@ -43,14 +50,44 @@ async function capture(name, query, height) {
     });
     SF.store.emit();
   });
+}
 
-  await new Promise((r) => setTimeout(r, 300));
+/* Bottom of the given element plus a margin small enough to stop short of
+ * the actions bar under the table. */
+const bottomOf = (selector) => page.evaluate((sel) =>
+  Math.ceil(document.querySelector(sel).getBoundingClientRect().bottom) + 8, selector);
+
+async function save(name, height) {
+  await page.setViewport({ width: WIDTH, height });
+  await pause(300);
   await page.screenshot({ path: join(OUT, `${name}.png`) });
   console.log(`  ${name}.png`);
 }
 
-await capture('screenshot-folded', '&folded=all', 620);
-await capture('screenshot-expanded', '', 1180);
+/* Everything folded: the folders with their icon strips, then the
+ * containers in no folder. */
+await open('&folded=all');
+await save('screenshot-folded', await bottomOf('.sf-card'));
+
+/* Everything unfolded. */
+await open('');
+await save('screenshot-expanded', await bottomOf('.sf-card'));
+
+/* The Columns list, over the folded table. */
+await open('&folded=all');
+await page.setViewport({ width: WIDTH, height: await bottomOf('.sf-card') });
+await page.click('.sf-btn-cols');
+await page.waitForSelector('.sf-cols');
+await save('screenshot-columns', Math.max(await bottomOf('.sf-card'), await bottomOf('.sf-cols')));
+
+/* A container's menu with its Details unfolded: network, MAC, creation
+ * date and volume mappings. Cut off under the menu. */
+await open('');
+await page.setViewport({ width: WIDTH, height: await bottomOf('.sf-card') });
+await page.click('.sf-ct-icon[aria-label^="Actions for sonarr,"]');
+await page.waitForSelector('.sf-ctm');
+await page.click('.sf-ctm-disc');
+await save('screenshot-details', (await bottomOf('.sf-ctm')) + 8);
 
 await page.close();
 await browser.disconnect();
