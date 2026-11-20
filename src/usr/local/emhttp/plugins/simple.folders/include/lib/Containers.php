@@ -355,7 +355,6 @@ function sf_primary_port(array $ct): ?int {
   }
   foreach ($ports as $port) {
     if (is_array($port) && !empty($port['PrivatePort'])) return (int)$port['PrivatePort'];
-    if (is_numeric($key)) return (int)$key;
   }
   return null;
 }
