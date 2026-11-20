@@ -51,6 +51,9 @@
   </Overview>
 
   <Changes>
+### 2026.11.20
+- Fix: no more syslog warning for containers on br0, a vlan or host networking.
+
 ### 2026.11.18
 - Container status shows uptime, health and exit codes; problems stand out in amber.
 - Image version, Compose stack, a Network column and the start delay.
