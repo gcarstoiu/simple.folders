@@ -7,8 +7,8 @@
 <!ENTITY plugdir   "/usr/local/emhttp/plugins/&name;">
 <!ENTITY cfgdir    "/boot/config/plugins/&name;">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/&github;/main/&name;.plg">
-<!ENTITY version   "2026.11.18">
-<!ENTITY md5       "c6f115e6c5dd66ac1e5c3840b700bcf7">
+<!ENTITY version   "2026.11.20">
+<!ENTITY md5       "2f23c89cdcb5cdf6b824063e2f853c34">
 ]>
 
 <PLUGIN name="&name;"
@@ -21,6 +21,10 @@
         support="https://github.com/&github;/issues">
 
 <CHANGES>
+###2026.11.20
+- Fix: a warning was written to the syslog for every container on br0, a
+  vlan or host networking each time the Docker page loaded its data.
+
 ###2026.11.18
 - Each container shows how long it has been up, its health, and how it
   last exited. Restarting, unhealthy and error exits show in amber, also on
